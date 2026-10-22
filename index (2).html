@@ -1,0 +1,2324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#11141a">
+<meta name="mobile-web-app-capable" content="yes">
+<title>OmniBook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Onest:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+/* Layout: one-column app shell — sticky header, scrolling view, bottom tab bar on phones, header tabs on desktop. Dark by design (reading at night / on the go). */
+:root{
+  --ink-0:#11141a;      /* page */
+  --ink-1:#171b22;      /* surface */
+  --ink-2:#1f242d;      /* raised */
+  --line:#2b313c;
+  --paper:#ebe6da;      /* reading text, warm */
+  --muted:#9ba1ab;
+  --faint:#6c7380;
+  --brass:#dcae5f;      /* accent */
+  --brass-ink:#1b1408;
+  --host-a:#7ccabb;     /* curious learner */
+  --host-b:#b9a3f2;     /* deep explainer */
+  --onair:#e8584f;      /* recording lamp (semantic) */
+  --ok:#7cc48a;
+  --warn:#e3a54f;
+  --f-read:"Newsreader", Georgia, "Times New Roman", serif;
+  --f-ui:"Onest", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --nav-h:62px;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--ink-0);color:var(--paper);font:15px/1.5 var(--f-ui);-webkit-font-smoothing:antialiased;padding-top:env(safe-area-inset-top,0px)}
+[hidden]{display:none!important}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--brass)}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.wrap{max-width:980px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* Header */
+header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ink-0) 92%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+header.top .wrap{display:flex;align-items:center;gap:14px;height:56px}
+.brand{font-family:var(--f-read);font-size:1.35rem;font-weight:600;letter-spacing:.01em;white-space:nowrap}
+.brand i{color:var(--brass);font-style:italic;font-weight:400}
+.nowbook{flex:1;min-width:0;color:var(--muted);font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tabs-top{display:none;gap:4px}
+.iconbtn{background:none;border:1px solid var(--line);border-radius:10px;height:38px;min-width:38px;display:inline-grid;place-items:center;cursor:pointer;color:var(--paper)}
+.iconbtn:hover{border-color:var(--muted)}
+svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+/* Tabs */
+nav.bottom{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--ink-1);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+nav.bottom .row{display:grid;grid-template-columns:repeat(5,1fr);height:var(--nav-h)}
+.tab{background:none;border:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--faint);font-size:.72rem;letter-spacing:.02em}
+.tab[aria-selected="true"]{color:var(--brass)}
+.tab:disabled{opacity:.35;cursor:default}
+main{padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 24px)}
+@media (min-width:820px){
+  nav.bottom{display:none}
+  .tabs-top{display:flex}
+  .tabs-top .tab{flex-direction:row;font-size:.9rem;padding:8px 12px;border-radius:9px;gap:7px}
+  .tabs-top .tab[aria-selected="true"]{background:var(--ink-2)}
+  main{padding-bottom:40px}
+}
+
+/* Type */
+h1,h2,h3{font-family:var(--f-read);font-weight:500;text-wrap:balance;margin:0}
+h1{font-size:clamp(1.7rem,4.5vw,2.4rem);line-height:1.15}
+h2{font-size:1.35rem;line-height:1.25}
+h3{font-size:1.08rem}
+.eyebrow{font-size:.72rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+.muted{color:var(--muted)}
+.small{font-size:.85rem}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+section.view{padding-block:22px;display:flex;flex-direction:column;gap:22px}
+
+/* Controls */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:11px;border:1px solid var(--line);background:var(--ink-2);padding:10px 15px;cursor:pointer;font-weight:500;font-size:.92rem;min-height:42px;text-align:center}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--brass);color:var(--brass-ink);border-color:var(--brass)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.ghost{background:none}
+.btn.sm{min-height:34px;padding:6px 11px;font-size:.84rem;border-radius:9px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.danger{color:#f08c84}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:.82rem;color:var(--muted)}
+input[type=text],input[type=password],input[type=search],select,textarea{background:var(--ink-0);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:42px;width:100%}
+textarea{resize:vertical;min-height:84px;line-height:1.45}
+input[type=range]{accent-color:var(--brass);width:100%}
+.panel{background:var(--ink-1);border:1px solid var(--line);border-radius:16px;padding:18px}
+.status{font-size:.86rem;color:var(--muted);display:flex;align-items:center;gap:8px;min-height:1.4em}
+.status.err{color:#f08c84}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--brass);animation:sp 0.8s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:.76rem;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--ink-0)}
+.notice{border:1px dashed var(--line);border-radius:12px;padding:12px 14px;color:var(--muted);font-size:.88rem}
+
+/* Library */
+.drop{border:1.5px dashed color-mix(in srgb,var(--brass) 55%,var(--line));border-radius:18px;padding:28px 18px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;background:color-mix(in srgb,var(--brass) 4%,var(--ink-1))}
+.drop.over{background:color-mix(in srgb,var(--brass) 12%,var(--ink-1))}
+.drop .big{font-family:var(--f-read);font-size:1.3rem}
+.shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.bookcard{display:flex;gap:12px;align-items:stretch;background:var(--ink-1);border:1px solid var(--line);border-radius:14px;padding:12px;cursor:pointer;text-align:left;min-width:0}
+.bookcard:hover{border-color:var(--muted)}
+.bookcard.cur{border-color:var(--brass)}
+.spine{width:38px;flex:none;border-radius:5px;background:linear-gradient(160deg,var(--c1),var(--c2));display:grid;place-items:center;font-family:var(--f-read);font-size:1.2rem;color:#0d0f13}
+.bookcard .meta{min-width:0;display:flex;flex-direction:column;gap:2px}
+.bookcard .t{font-family:var(--f-read);font-size:1.05rem;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+
+/* Overview */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.stats div{background:var(--ink-1);padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.stats b{font-family:var(--f-mono);font-weight:500;font-size:1.15rem;font-variant-numeric:tabular-nums}
+@media (max-width:520px){.stats{grid-template-columns:repeat(2,1fr)}}
+.preview{max-height:360px;overflow:auto;font-family:var(--f-read);font-size:1.02rem;line-height:1.65;padding:16px 18px;border:1px solid var(--line);border-radius:14px;background:var(--ink-1)}
+.preview p{margin:0 0 .8em}
+.outline{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.ch{display:grid;grid-template-columns:44px 1fr;gap:10px;padding:14px 0;border-bottom:1px solid var(--line)}
+.ch .n{font-family:var(--f-mono);color:var(--faint);font-size:.85rem;padding-top:3px}
+.ch .body{min-width:0;display:flex;flex-direction:column;gap:7px}
+.ch .sum{font-family:var(--f-read);font-size:1rem;line-height:1.55;color:color-mix(in srgb,var(--paper) 88%,var(--muted))}
+.concepts{display:flex;flex-wrap:wrap;gap:6px}
+
+/* Reader */
+.reader-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.reader-head select{flex:1;min-width:0}
+.page{max-width:68ch;margin:0 auto;width:100%}
+.page h2{margin-bottom:18px}
+.para{font-family:var(--f-read);font-size:1.16rem;line-height:1.72;margin:0 0 1em;padding:4px 8px;margin-left:-8px;margin-right:-8px;border-radius:8px;cursor:pointer;transition:background .2s}
+.para:hover{background:color-mix(in srgb,var(--paper) 4%,transparent)}
+.para.active{background:color-mix(in srgb,var(--brass) 11%,transparent)}
+.para .w.on{background:color-mix(in srgb,var(--brass) 45%,transparent);border-radius:3px;color:#fff}
+.para-actions{display:flex;gap:6px;flex-wrap:wrap;margin:-6px 0 14px}
+.readbar{position:sticky;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 10px);z-index:10;background:var(--ink-2);border:1px solid var(--line);border-radius:16px;padding:10px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+@media (min-width:820px){.readbar{bottom:16px}}
+.readbar .speed{display:flex;align-items:center;gap:8px;flex:1;min-width:150px}
+.round{width:46px;height:46px;border-radius:50%;border:0;background:var(--brass);color:var(--brass-ink);display:grid;place-items:center;cursor:pointer;flex:none}
+.round svg.i{width:22px;height:22px}
+
+/* Studio */
+.hosts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.host{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;gap:10px;align-items:center;min-width:0}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.dot.a{background:var(--host-a)}.dot.b{background:var(--host-b)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{border:0;background:none;padding:8px 13px;cursor:pointer;color:var(--muted);font-size:.88rem}
+.seg button[aria-pressed="true"]{background:var(--ink-2);color:var(--paper)}
+.player{background:var(--ink-1);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.player .ph{padding:16px 18px;display:flex;gap:12px;align-items:flex-start;border-bottom:1px solid var(--line)}
+.lamp{display:inline-flex;align-items:center;gap:7px;font-family:var(--f-mono);font-size:.72rem;letter-spacing:.14em;color:var(--faint);border:1px solid var(--line);border-radius:6px;padding:3px 8px;flex:none}
+.lamp i{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.lamp.on{color:var(--onair);border-color:color-mix(in srgb,var(--onair) 50%,var(--line))}
+.lamp.on i{background:var(--onair);box-shadow:0 0 10px var(--onair);animation:pulse 1.6s ease-in-out infinite}
+.lamp.call{color:var(--brass);border-color:color-mix(in srgb,var(--brass) 50%,var(--line))}
+.lamp.call i{background:var(--brass)}
+@keyframes pulse{50%{opacity:.45}}
+.controls{padding:14px 18px;display:flex;flex-direction:column;gap:10px}
+.scrub{display:flex;align-items:center;gap:10px}
+.scrub .mono{font-size:.8rem;color:var(--muted);min-width:44px}
+.scrub .mono:last-child{text-align:right}
+.ctrlrow{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap}
+.ctrlrow .mid{display:flex;align-items:center;gap:10px}
+.callin{background:color-mix(in srgb,var(--brass) 10%,var(--ink-1));border-top:1px solid var(--line);padding:14px 18px;display:flex;flex-direction:column;gap:10px}
+.transcript{max-height:420px;overflow:auto;padding:8px 18px 18px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
+.turn{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:8px 8px;margin:0 -8px;border-radius:10px;cursor:pointer}
+.turn .who{font-size:.75rem;font-weight:600;letter-spacing:.04em;padding-top:4px;min-width:62px}
+.turn.A .who{color:var(--host-a)}.turn.B .who{color:var(--host-b)}.turn.N .who{color:var(--brass)}
+.turn .tx{font-family:var(--f-read);font-size:1.03rem;line-height:1.55;min-width:0}
+.turn.active{background:var(--ink-2)}
+.turn.caller{background:color-mix(in srgb,var(--brass) 8%,transparent)}
+.callmark{font-size:.75rem;color:var(--brass);letter-spacing:.06em;text-transform:uppercase;padding:10px 0 2px}
+.eplist{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.ep{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.ep .meta{flex:1;min-width:0}
+.ep .t{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ep.cur .t{color:var(--brass)}
+
+/* Ask */
+.chat{display:flex;flex-direction:column;gap:14px}
+.msg{max-width:100%;min-width:0}
+.msg.user{align-self:flex-end;background:var(--ink-2);border:1px solid var(--line);border-radius:16px 16px 4px 16px;padding:10px 14px;max-width:85%}
+.msg.bot{font-family:var(--f-read);font-size:1.07rem;line-height:1.62}
+.msg.bot p{margin:0 0 .75em}
+.msg.bot ul,.msg.bot ol{margin:0 0 .75em;padding-left:1.3em}
+.msg.bot li{margin:.2em 0}
+.cites{display:inline-flex;flex-wrap:wrap;gap:4px;vertical-align:2px;margin-left:3px}
+.cite{font-family:var(--f-mono);font-size:.68rem;font-weight:500;padding:1px 7px;border-radius:6px;border:1px solid color-mix(in srgb,var(--host-a) 40%,var(--line));background:color-mix(in srgb,var(--host-a) 10%,transparent);color:var(--host-a);cursor:pointer;white-space:nowrap;line-height:1.5}
+.cite:hover{background:color-mix(in srgb,var(--host-a) 22%,transparent)}
+.cite.bad{border-color:color-mix(in srgb,var(--onair) 50%,var(--line));color:var(--onair);background:none;cursor:help}
+.check{font-family:var(--f-ui);font-size:.82rem;line-height:1.45;margin-top:8px;padding:8px 11px;border-radius:10px;border:1px solid var(--line);color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.check.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,var(--line))}
+.check.warn{display:block;color:var(--paper);border-color:color-mix(in srgb,var(--warn) 55%,var(--line));background:color-mix(in srgb,var(--warn) 7%,transparent)}
+.check.warn b{color:var(--warn)}
+.check ul{margin:6px 0 0;padding-left:1.1em}
+.marks{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px;font-family:var(--f-ui)}
+.flagnote{font-size:.72rem;color:var(--warn)}
+.fixnote{font-size:.72rem;color:var(--muted);border:1px dashed var(--line);border-radius:6px;padding:0 6px}
+.caret{display:inline-block;width:.5em;height:1em;vertical-align:-2px;background:var(--brass);margin-left:2px;animation:pulse 1s steps(2) infinite}
+.para.flash{background:color-mix(in srgb,var(--host-a) 18%,transparent);transition:background .4s}
+/* Live voice bar */
+.livebar{position:fixed;left:0;right:0;z-index:40;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 8px);display:flex;justify-content:center;padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px));pointer-events:none}
+@media (min-width:820px){.livebar{bottom:18px}}
+.livebar .in{pointer-events:auto;width:min(640px,100%);background:#0c0e12;border:1px solid color-mix(in srgb,var(--brass) 45%,var(--line));border-radius:20px;padding:12px 14px;display:flex;gap:12px;align-items:center;box-shadow:0 16px 40px rgba(0,0,0,.55)}
+.orb{width:44px;height:44px;border-radius:50%;flex:none;background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--brass) 80%,#fff),var(--brass) 45%,color-mix(in srgb,var(--brass) 40%,#000));transform:scale(calc(.82 + var(--lvl,0)*.5));transition:transform .08s linear;box-shadow:0 0 calc(var(--lvl,0)*28px) color-mix(in srgb,var(--brass) 70%,transparent)}
+.orb.you{background:radial-gradient(circle at 35% 30%,#fff,var(--host-a) 45%,color-mix(in srgb,var(--host-a) 40%,#000));box-shadow:0 0 calc(var(--lvl,0)*28px) var(--host-a)}
+.orb.idle{opacity:.55}
+.livebar .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.livebar .lbl{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--brass)}
+.livebar .say{font-family:var(--f-read);font-size:.98rem;line-height:1.35;color:var(--paper);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;min-height:1.35em}
+.tagb,.tagw{display:inline-block;font-family:var(--f-ui);font-size:.68rem;font-weight:600;letter-spacing:.03em;padding:1px 7px;border-radius:999px;vertical-align:2px;white-space:nowrap}
+.tagb{color:var(--host-a);background:color-mix(in srgb,var(--host-a) 14%,transparent)}
+.tagw{color:var(--host-b);background:color-mix(in srgb,var(--host-b) 15%,transparent)}
+.sources{display:flex;flex-direction:column;gap:4px;font-family:var(--f-ui);font-size:.82rem;margin-top:4px}
+.sources a{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.composer{position:sticky;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 10px);background:var(--ink-2);border:1px solid var(--line);border-radius:16px;padding:10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+@media (min-width:820px){.composer{bottom:16px}}
+.composer textarea{min-height:46px;max-height:180px;border:0;background:none;padding:6px 6px}
+.composer textarea:focus-visible{outline:none}
+.ctx{display:flex;gap:8px;align-items:flex-start;font-size:.82rem;color:var(--muted);background:var(--ink-0);border-radius:10px;padding:8px 10px}
+.ctx span{flex:1;min-width:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-family:var(--f-read);font-style:italic}
+.toggle{display:inline-flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted);cursor:pointer;user-select:none}
+.toggle input{accent-color:var(--brass);width:18px;height:18px}
+.mic.on{background:var(--onair);border-color:var(--onair);color:#fff}
+
+/* Modal */
+dialog{border:1px solid var(--line);border-radius:18px;background:var(--ink-1);color:var(--paper);padding:0;width:min(560px,calc(100vw - 24px));max-height:calc(100dvh - 40px)}
+dialog::backdrop{background:rgba(5,6,9,.7)}
+.dlg{display:flex;flex-direction:column;max-height:calc(100dvh - 40px)}
+.dlg header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line)}
+.dlg .bd{padding:18px;overflow:auto;display:flex;flex-direction:column;gap:16px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:480px){.grid2,.hosts{grid-template-columns:1fr}}
+.empty{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;padding:48px 10px;color:var(--muted)}
+.empty h2{color:var(--paper)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 16px);background:var(--paper);color:var(--ink-0);padding:10px 16px;border-radius:12px;font-size:.9rem;z-index:60;max-width:calc(100vw - 32px);box-shadow:0 8px 24px rgba(0,0,0,.4)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">Omni<i>Book</i></div>
+    <div class="nowbook" id="nowbook"></div>
+    <div class="tabs-top" id="tabsTop" role="tablist"></div>
+    <button class="iconbtn" id="openSettings" aria-label="Settings" title="Settings">
+      <svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <!-- LIBRARY -->
+  <section class="view" id="v-library">
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Add a book">
+      <svg class="i" viewBox="0 0 24 24" style="width:30px;height:30px;color:var(--brass)"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M12 7v6M9 10h6"/></svg>
+      <div class="big">Add a book</div>
+      <div class="muted small">PDF, EPUB or TXT. The file stays on this device.</div>
+      <input type="file" id="fileIn" accept=".pdf,.epub,.txt,application/pdf,application/epub+zip,text/plain" hidden>
+    </div>
+    <div class="status" id="libStatus"></div>
+    <div id="keyNotice" class="notice" hidden>
+      Add your free Gemini API key in <a href="#" id="keyNoticeLink">Settings</a> to use summaries, the podcast studio and Ask. Reading aloud works without it.
+    </div>
+    <div>
+      <div class="eyebrow" style="margin-bottom:10px">Your shelf</div>
+      <div class="shelf" id="shelf"></div>
+    </div>
+  </section>
+
+  <!-- BOOK OVERVIEW -->
+  <section class="view" id="v-book" hidden></section>
+
+  <!-- READER -->
+  <section class="view" id="v-reader" hidden>
+    <div class="reader-head">
+      <button class="iconbtn" id="prevCh" aria-label="Previous chapter"><svg class="i" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <select id="chSel" aria-label="Chapter"></select>
+      <button class="iconbtn" id="nextCh" aria-label="Next chapter"><svg class="i" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+      <button class="iconbtn" id="chTools" aria-label="Chapter tools" title="Rename or merge chapter"><svg class="i" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+    </div>
+    <div class="panel" id="chToolPanel" hidden>
+      <div class="field"><label for="chRename">Chapter title</label><input type="text" id="chRename"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn sm" id="chRenameSave">Save title</button>
+        <button class="btn sm ghost" id="chMerge">Merge into previous chapter</button>
+      </div>
+      <p class="muted small" style="margin:10px 0 0">To split a chapter, tap a paragraph and choose “New chapter here”.</p>
+    </div>
+    <div class="page" id="page"></div>
+    <div class="readbar" id="readbar">
+      <button class="round" id="rPlay" aria-label="Read aloud"></button>
+      <button class="iconbtn" id="rStop" aria-label="Stop"><svg class="i" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
+      <div class="speed"><span class="mono small muted" id="rRateLbl">1.0×</span><input type="range" id="rRate" min="0.6" max="2" step="0.1" value="1" aria-label="Reading speed"></div>
+      <select id="rVoice" aria-label="Reading voice" style="width:auto;min-height:38px;padding:6px 10px"><option value="gemini">Gemini voice</option><option value="phone">Phone voice</option></select>
+      <span class="status small" id="rStatus" style="flex-basis:100%;min-height:0"></span>
+      <button class="btn sm" id="liveRdBtn" data-live="reader"><svg class="i" viewBox="0 0 24 24"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><rect x="2.5" y="14" width="5" height="7" rx="2"/><rect x="16.5" y="14" width="5" height="7" rx="2"/></svg> <span>Talk</span></button>
+      <button class="btn sm ghost" id="rAudio" title="Make a saved audio file with a Gemini voice — keeps playing with the screen off">Save as audio</button>
+    </div>
+  </section>
+
+  <!-- STUDIO -->
+  <section class="view" id="v-studio" hidden>
+    <div class="panel" style="display:flex;flex-direction:column;gap:14px">
+      <div><div class="eyebrow">Podcast studio</div><h2 style="margin-top:4px">Record an episode</h2></div>
+      <div class="hosts" id="hostCards"></div>
+      <div class="grid2">
+        <div class="field"><label for="epSource">What to cover</label><select id="epSource"></select></div>
+        <div class="field"><label>Length</label>
+          <div class="seg" id="epLen" role="group" aria-label="Episode length">
+            <button data-v="short" aria-pressed="false">~3 min</button><button data-v="standard" aria-pressed="true">~8 min</button><button data-v="deep" aria-pressed="false">~15 min</button>
+          </div>
+        </div>
+      </div>
+      <div class="field"><label for="epFocus">Anything to focus on? (optional)</label><input type="text" id="epFocus" placeholder="e.g. explain the key terms simply, skip the history"></div>
+      <div class="row">
+        <button class="btn primary" id="epMake">Write &amp; record episode</button>
+        <button class="btn ghost" id="epScriptOnly" title="Uses your phone's built-in voices; no audio file, stops when the screen locks">Script only (phone voices)</button>
+      </div>
+      <div class="status" id="epStatus"></div>
+    </div>
+
+    <div class="player" id="player" hidden>
+      <div class="ph">
+        <div style="flex:1;min-width:0">
+          <div class="eyebrow" id="plKind">Episode</div>
+          <h3 id="plTitle" style="margin-top:3px"></h3>
+        </div>
+        <span class="lamp" id="lamp"><i></i><span>ON AIR</span></span>
+      </div>
+      <div class="controls">
+        <div class="scrub"><span class="mono" id="plCur">0:00</span><input type="range" id="plSeek" min="0" max="1000" value="0" aria-label="Seek"><span class="mono" id="plDur">0:00</span></div>
+        <div class="ctrlrow">
+          <div class="mid">
+            <button class="iconbtn" id="plBack" aria-label="Back 15 seconds"><svg class="i" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><text x="12" y="15.5" font-size="7" text-anchor="middle" fill="currentColor" stroke="none" font-family="sans-serif">15</text></svg></button>
+            <button class="round" id="plPlay" aria-label="Play"></button>
+            <button class="iconbtn" id="plFwd" aria-label="Forward 15 seconds"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/><text x="12" y="15.5" font-size="7" text-anchor="middle" fill="currentColor" stroke="none" font-family="sans-serif">15</text></svg></button>
+          </div>
+          <div class="mid">
+            <select id="plRate" aria-label="Playback speed" style="width:auto;min-height:38px;padding:6px 10px"><option>0.8</option><option selected>1</option><option>1.2</option><option>1.5</option><option>1.75</option><option>2</option></select>
+            <button class="btn" id="liveEpBtn" data-live="episode"><svg class="i" viewBox="0 0 24 24"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><rect x="2.5" y="14" width="5" height="7" rx="2"/><rect x="16.5" y="14" width="5" height="7" rx="2"/></svg> <span>Talk live</span></button>
+            <button class="btn primary" id="callBtn">
+              <svg class="i" viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>
+              Type
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="callin" id="callPanel" hidden>
+        <div class="small muted">The hosts are paused. Ask your question by voice or text.</div>
+        <div class="row" style="flex-wrap:nowrap">
+          <input type="text" id="callQ" placeholder="Type your question…" style="flex:1;min-width:0" autocomplete="off">
+          <button class="iconbtn mic" id="callMic" aria-label="Speak your question"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg></button>
+        </div>
+        <div class="row">
+          <button class="btn primary sm" id="callSend">Put me on air</button>
+          <button class="btn ghost sm" id="callCancel">Cancel &amp; resume</button>
+        </div>
+        <div class="status" id="callStatus"></div>
+      </div>
+      <div class="transcript" id="transcript"></div>
+      <div class="controls" style="border-top:1px solid var(--line);padding-block:12px">
+        <div class="row">
+          <button class="btn sm ghost" id="plDownload">Save audio file</button>
+          <span class="small muted" id="plNote"></span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="eyebrow" style="margin-bottom:8px">Saved episodes for this book</div>
+      <div class="eplist" id="eplist"></div>
+    </div>
+    <audio id="epAudio" preload="auto"></audio>
+    <audio id="rdAudio" preload="auto"></audio>
+    <audio id="ansAudio" preload="auto"></audio>
+  </section>
+
+  <!-- ASK -->
+  <section class="view" id="v-ask" hidden>
+    <div class="row" style="justify-content:space-between">
+      <div><div class="eyebrow">Ask about the book</div><h2 style="margin-top:4px" id="askTitle"></h2></div>
+      <div class="row"><button class="btn sm primary" id="liveAskBtn" data-live="ask"><svg class="i" viewBox="0 0 24 24"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><rect x="2.5" y="14" width="5" height="7" rx="2"/><rect x="16.5" y="14" width="5" height="7" rx="2"/></svg> <span>Talk live</span></button><button class="btn sm ghost" id="askClear">New chat</button></div>
+    </div>
+    <div class="chat" id="chat"></div>
+    <div class="composer">
+      <div class="ctx" id="askCtx" hidden><span id="askCtxText"></span><button class="btn sm ghost" id="askCtxX" aria-label="Remove paragraph" style="min-height:26px;padding:2px 8px">×</button></div>
+      <textarea id="askIn" rows="1" placeholder="Ask anything about this book…"></textarea>
+      <div class="row" style="justify-content:space-between">
+        <label class="toggle"><input type="checkbox" id="askWeb"> Search the web too</label>
+        <div class="row">
+          <button class="iconbtn mic" id="askMic" aria-label="Speak your question"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg></button>
+          <button class="btn primary sm" id="askSend">Ask</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<nav class="bottom"><div class="row" id="tabsBottom" role="tablist"></div></nav>
+
+<dialog id="settings">
+  <form method="dialog" class="dlg" id="setForm">
+    <header><h2>Settings</h2><button class="iconbtn" value="close" aria-label="Close"><svg class="i" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button></header>
+    <div class="bd">
+      <div class="field">
+        <label for="sKey">Gemini API key (free)</label>
+        <div class="row" style="flex-wrap:nowrap"><input type="password" id="sKey" autocomplete="off" spellcheck="false" placeholder="AIza…" style="flex:1;min-width:0"><button type="button" class="btn sm" id="sKeyShow">Show</button></div>
+        <div class="small muted">Get one at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. It's saved only in this browser. On the free tier Google may use what you send to improve its products.</div>
+        <div class="row"><button type="button" class="btn sm" id="sTest">Test key</button><span class="status" id="sTestStatus"></span></div>
+      </div>
+      <div class="eyebrow">Hosts</div>
+      <div class="grid2">
+        <div class="field"><label for="sAName">Host A (curious learner)</label><input type="text" id="sAName"></div>
+        <div class="field"><label for="sAVoice">Voice</label><select id="sAVoice"></select></div>
+        <div class="field"><label for="sBName">Host B (deep explainer)</label><input type="text" id="sBName"></div>
+        <div class="field"><label for="sBVoice">Voice</label><select id="sBVoice"></select></div>
+        <div class="field"><label for="sNVoice">Narrator voice (Save as audio)</label><select id="sNVoice"></select></div>
+        <div class="field"><label for="sBrowserVoice">Phone voice for reading aloud</label><select id="sBrowserVoice"></select></div>
+      </div>
+      <div class="eyebrow">Models</div>
+      <div class="small muted">Defaults are Google's free models as of October 2026. If Google renames them, tap “Test key” to see what your key can use.</div>
+      <div class="grid2">
+        <div class="field"><label for="sText">Writing &amp; answers</label><input type="text" id="sText" list="modelList" spellcheck="false"></div>
+        <div class="field"><label for="sSearch">Web search answers</label><input type="text" id="sSearch" list="modelList" spellcheck="false"></div>
+        <div class="field"><label for="sTts">Voices</label><input type="text" id="sTts" list="ttsList" spellcheck="false"></div>
+        <div class="field"><label for="sLive">Live talk</label><input type="text" id="sLive" list="liveList" spellcheck="false"></div>
+      </div>
+      <datalist id="modelList"></datalist><datalist id="ttsList"></datalist><datalist id="liveList"></datalist>
+      <div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding-top:14px">
+        <button type="button" class="btn sm ghost danger" id="sWipe">Delete all books &amp; episodes</button>
+        <button class="btn primary" value="save" id="sSave">Save</button>
+      </div>
+      <div class="small muted" id="sWipeConfirm" hidden>
+        Tap again to confirm. This removes every book and saved episode from this device.
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<div class="livebar" id="livebar" hidden><div class="in">
+  <button class="orb idle" id="liveOrb" aria-label="Mute or unmute your microphone" style="border:0;cursor:pointer"></button>
+  <div class="txt"><span class="lbl" id="liveLbl">Connecting</span><span class="say" id="liveSay"></span></div>
+  <button class="btn sm ghost" id="liveEnd">End</button>
+</div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+"use strict";
+/* ============================== basics ============================== */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const fmtTime = s => { s = Math.max(0, Math.floor(s || 0)); const m = Math.floor(s / 60), ss = s % 60; return m >= 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}:${String(ss).padStart(2, "0")}` : `${m}:${String(ss).padStart(2, "0")}`; };
+const wordCount = t => (t.match(/\S+/g) || []).length;
+const fmtNum = n => n.toLocaleString("en-US");
+
+const ICON = {
+  play: '<svg class="i" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z" fill="currentColor" stroke="none"/></svg>',
+  pause: '<svg class="i" viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="4.5" width="4" height="15" rx="1" fill="currentColor" stroke="none"/></svg>',
+  library: '<svg class="i" viewBox="0 0 24 24"><path d="M4 4h4v16H4zM10 4h4v16h-4z"/><path d="M16.5 4.6l3.8-1 3.2 15.6-3.9.9z" transform="translate(-2 0)"/></svg>',
+  book: '<svg class="i" viewBox="0 0 24 24"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg>',
+  reader: '<svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h10M4 18h7"/><path d="M17 15v6l4-3z" fill="currentColor"/></svg>',
+  studio: '<svg class="i" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>',
+  ask: '<svg class="i" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-5A8 8 0 1 1 21 12z"/><path d="M9.8 9.5a2.3 2.3 0 0 1 4.4.8c0 1.5-2.2 2-2.2 3.2M12 16.3h.01"/></svg>',
+};
+
+function toast(msg, ms = 3200) {
+  const t = $("#toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), ms);
+}
+function setStatus(el, msg, kind) {
+  if (typeof el === "string") el = $(el);
+  if (!msg) { el.innerHTML = ""; el.classList.remove("err"); return; }
+  el.classList.toggle("err", kind === "err");
+  el.innerHTML = (kind === "busy" ? '<span class="spin"></span>' : "") + `<span>${esc(msg)}</span>`;
+}
+
+/* ============================== settings ============================== */
+const VOICES = [
+  ["Zephyr", "Bright"], ["Puck", "Upbeat"], ["Charon", "Informative"], ["Kore", "Firm"], ["Fenrir", "Excitable"], ["Leda", "Youthful"],
+  ["Orus", "Firm"], ["Aoede", "Breezy"], ["Callirrhoe", "Easy-going"], ["Autonoe", "Bright"], ["Enceladus", "Breathy"], ["Iapetus", "Clear"],
+  ["Umbriel", "Easy-going"], ["Algieba", "Smooth"], ["Despina", "Smooth"], ["Erinome", "Clear"], ["Algenib", "Gravelly"], ["Rasalgethi", "Informative"],
+  ["Laomedeia", "Upbeat"], ["Achernar", "Soft"], ["Alnilam", "Firm"], ["Schedar", "Even"], ["Gacrux", "Mature"], ["Pulcherrima", "Forward"],
+  ["Achird", "Friendly"], ["Zubenelgenubi", "Casual"], ["Vindemiatrix", "Gentle"], ["Sadachbia", "Lively"], ["Sadaltager", "Knowledgeable"], ["Sulafat", "Warm"],
+];
+const DEFAULTS = {
+  key: "", textModel: "gemini-3.8-flash", searchModel: "gemini-2.5-flash", ttsModel: "gemini-3.8-flash-tts",
+  aName: "Jess", aVoice: "Laomedeia", bName: "Marcus", bVoice: "Sadaltager", nVoice: "Sulafat",
+  browserVoice: "", rate: 1, web: true, lastBook: "", epLen: "standard", readVoice: "gemini", liveModel: "gemini-3.8-live",
+};
+const S = (() => { let s = {}; try { s = JSON.parse(localStorage.getItem("omnibook.settings") || "{}"); } catch {} return { ...DEFAULTS, ...s }; })();
+function saveSettings() { try { localStorage.setItem("omnibook.settings", JSON.stringify(S)); } catch {} }
+
+/* ============================== storage (IndexedDB) ============================== */
+const DB = (() => {
+  let dbp;
+  const open = () => dbp || (dbp = new Promise((res, rej) => {
+    const r = indexedDB.open("omnibook", 1);
+    r.onupgradeneeded = () => {
+      const d = r.result;
+      d.createObjectStore("books", { keyPath: "id" });
+      const e = d.createObjectStore("episodes", { keyPath: "id" });
+      e.createIndex("bookId", "bookId");
+    };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  }));
+  const tx = async (store, mode, fn) => {
+    const d = await open();
+    return new Promise((res, rej) => {
+      const t = d.transaction(store, mode); const st = t.objectStore(store);
+      let out; const r = fn(st); if (r) r.onsuccess = () => (out = r.result);
+      t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+    });
+  };
+  return {
+    put: (s, v) => tx(s, "readwrite", st => st.put(v)),
+    get: (s, k) => tx(s, "readonly", st => st.get(k)),
+    del: (s, k) => tx(s, "readwrite", st => st.delete(k)),
+    all: s => tx(s, "readonly", st => st.getAll()),
+    byBook: async id => { const d = await open(); return new Promise((res, rej) => { const r = d.transaction("episodes").objectStore("episodes").index("bookId").getAll(id); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+    wipe: async () => { await tx("books", "readwrite", st => st.clear()); await tx("episodes", "readwrite", st => st.clear()); },
+  };
+})();
+
+/* ============================== book parsing ============================== */
+const HEADING_RE = /^(chapter|part|book|section|prologue|epilogue|introduction|foreword|preface|afterword|appendix|conclusion|interlude)\b[\s\S]{0,70}$/i;
+const ROMAN_RE = /^(?=[IVXLC])(C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})\.?$/;
+function isHeading(p) {
+  const t = p.trim();
+  if (t.length > 80 || t.length < 1) return false;
+  if (HEADING_RE.test(t)) return !/[.,;]$/.test(t) || /^chapter\s+\S+\.?$/i.test(t);
+  if (ROMAN_RE.test(t)) return true;
+  if (/^\d{1,3}\.?$/.test(t)) return true;
+  return false;
+}
+function chaptersFromParas(paras, chunkWords = 3500) {
+  const chapters = []; let cur = null;
+  for (const p of paras) {
+    if (isHeading(p)) {
+      if (cur && cur.paras.length === 0 && cur.title.length + p.length < 90) { cur.title += " · " + p.trim(); continue; }
+      cur = { title: p.trim(), paras: [] }; chapters.push(cur);
+    } else {
+      const t = p.trim();
+      if (cur && cur.paras.length === 0 && cur.title !== "Front matter" && t.length < 60 && !/[.!?,;:]$/.test(t) && !/^[a-z]/.test(t)) { cur.title += " · " + t; continue; }
+      if (!cur) { cur = { title: "Front matter", paras: [] }; chapters.push(cur); }
+      cur.paras.push(p);
+    }
+  }
+  const real = chapters.filter(c => c.paras.length);
+  if (real.length >= 2) return real;
+  return chunkParas(paras.filter(p => !isHeading(p)), chunkWords, i => `Part ${i}`);
+}
+function chunkParas(paras, chunkWords, label) {
+  const out = []; let cur = [], w = 0;
+  for (const p of paras) { cur.push(p); w += wordCount(p); if (w >= chunkWords) { out.push(cur); cur = []; w = 0; } }
+  if (cur.length) { if (out.length && w < chunkWords * 0.25) out[out.length - 1].push(...cur); else out.push(cur); }
+  return out.map((ps, i) => ({ title: label(i + 1), paras: ps }));
+}
+
+function parseTxt(text, filename) {
+  text = text.replace(/\r\n?/g, "\n").replace(/ /g, " ");
+  const s = text.search(/\*\*\*\s*START OF (THE|THIS) PROJECT GUTENBERG[^\n]*\n/i);
+  if (s >= 0) text = text.slice(text.indexOf("\n", s) + 1);
+  const e = text.search(/\*\*\*\s*END OF (THE|THIS) PROJECT GUTENBERG/i);
+  if (e >= 0) text = text.slice(0, e);
+  const lines = text.split("\n").length;
+  let blocks = text.split(/\n\s*\n/);
+  if (blocks.length < lines / 25) blocks = text.split("\n");
+  const paras = blocks.map(b => b.replace(/\s*\n\s*/g, " ").replace(/\s{2,}/g, " ").trim()).filter(b => b && !/^[*\-_=~#\s]+$/.test(b));
+  if (!paras.length) throw new Error("This text file looks empty.");
+  let title = filename.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " "), author = "";
+  if (paras[0].length < 80 && !isHeading(paras[0]) && !/[.!?]$/.test(paras[0])) title = paras[0];
+  const by = paras.slice(0, 4).find(p => /^by\s+\S/i.test(p) && p.length < 80);
+  if (by) author = by.replace(/^by\s+/i, "");
+  return { title, author, chapters: chaptersFromParas(paras) };
+}
+
+async function parseEpub(buf, filename) {
+  if (!window.JSZip) throw new Error("The EPUB reader didn't load. Check your connection and reload.");
+  const zip = await JSZip.loadAsync(buf);
+  const xml = s => new DOMParser().parseFromString(s, "application/xml");
+  const read = p => { const f = zip.file(p) || zip.file(decodeURIComponent(p)); return f ? f.async("string") : null; };
+  const container = await read("META-INF/container.xml");
+  if (!container) throw new Error("This EPUB is missing its table of contents file.");
+  const opfPath = xml(container).querySelector("rootfile")?.getAttribute("full-path");
+  const opfText = await read(opfPath);
+  if (!opfText) throw new Error("Couldn't read this EPUB's package file.");
+  const opf = xml(opfText);
+  const base = opfPath.includes("/") ? opfPath.slice(0, opfPath.lastIndexOf("/") + 1) : "";
+  const resolve = (from, href) => {
+    const parts = (from + href.split("#")[0]).split("/"); const out = [];
+    for (const p of parts) { if (p === "..") out.pop(); else if (p && p !== ".") out.push(p); }
+    try { return decodeURIComponent(out.join("/")); } catch { return out.join("/"); }
+  };
+  const byTag = (doc, tag) => Array.from(doc.getElementsByTagNameNS("*", tag));
+  const title = byTag(opf, "title")[0]?.textContent?.trim() || filename.replace(/\.[^.]+$/, "");
+  const author = byTag(opf, "creator").map(n => n.textContent.trim()).filter(Boolean).join(", ");
+  const manifest = {};
+  for (const it of byTag(opf, "item")) manifest[it.getAttribute("id")] = { href: resolve(base, it.getAttribute("href")), type: it.getAttribute("media-type"), props: it.getAttribute("properties") || "" };
+  const spineEl = byTag(opf, "spine")[0];
+  const spine = byTag(opf, "itemref").map(r => manifest[r.getAttribute("idref")]).filter(Boolean);
+
+  // table of contents titles
+  const tocTitle = {};
+  const navItem = Object.values(manifest).find(m => m.props.split(/\s+/).includes("nav"));
+  if (navItem) {
+    const t = await read(navItem.href);
+    if (t) {
+      const d = new DOMParser().parseFromString(t, "text/html");
+      const nav = Array.from(d.querySelectorAll("nav")).find(n => /toc/.test(n.getAttribute("epub:type") || n.getAttribute("type") || n.id || "")) || d.querySelector("nav");
+      const navBase = navItem.href.includes("/") ? navItem.href.slice(0, navItem.href.lastIndexOf("/") + 1) : "";
+      nav?.querySelectorAll("a[href]").forEach(a => { const p = resolve(navBase, a.getAttribute("href")); if (!tocTitle[p]) tocTitle[p] = a.textContent.replace(/\s+/g, " ").trim(); });
+    }
+  }
+  const ncxId = spineEl?.getAttribute("toc");
+  if (!Object.keys(tocTitle).length && ncxId && manifest[ncxId]) {
+    const t = await read(manifest[ncxId].href);
+    if (t) {
+      const d = xml(t); const nb = manifest[ncxId].href.includes("/") ? manifest[ncxId].href.slice(0, manifest[ncxId].href.lastIndexOf("/") + 1) : "";
+      for (const np of byTag(d, "navPoint")) {
+        const label = byTag(np, "text")[0]?.textContent?.trim(); const src = byTag(np, "content")[0]?.getAttribute("src");
+        if (label && src) { const p = resolve(nb, src); if (!tocTitle[p]) tocTitle[p] = label; }
+      }
+    }
+  }
+
+  const BLOCK = "p,h1,h2,h3,h4,h5,h6,li,blockquote,pre,dd,dt,figcaption,td";
+  const chapters = [];
+  let n = 0;
+  for (const item of spine) {
+    if (!/x?html/.test(item.type || "")) continue;
+    const t = await read(item.href); if (!t) continue;
+    let d = new DOMParser().parseFromString(t, "application/xhtml+xml");
+    if (d.querySelector("parsererror") || !d.body) d = new DOMParser().parseFromString(t, "text/html");
+    const body = d.body || d.documentElement;
+    body.querySelectorAll("script,style,nav").forEach(x => x.remove());
+    let paras = Array.from(body.querySelectorAll(BLOCK)).filter(el => !el.querySelector(BLOCK)).map(el => el.textContent.replace(/\s+/g, " ").trim()).filter(Boolean);
+    if (!paras.length) paras = (body.textContent || "").split(/\n\s*\n|\n/).map(s => s.replace(/\s+/g, " ").trim()).filter(Boolean);
+    const chars = paras.join(" ").length;
+    if (chars < 80) continue;
+    n++;
+    const h = body.querySelector("h1,h2,h3")?.textContent.replace(/\s+/g, " ").trim();
+    let ttl = tocTitle[item.href] || (h && h.length < 90 ? h : "") || `Section ${n}`;
+    if (paras[0] && (paras[0] === ttl || (h && paras[0] === h))) paras.shift();
+    if (paras.length) chapters.push({ title: ttl, paras });
+  }
+  if (!chapters.length) throw new Error("Couldn't find any readable text in this EPUB.");
+  // very long single-file EPUBs: try to split by headings
+  if (chapters.length === 1 && wordCount(chapters[0].paras.join(" ")) > 8000) {
+    const split = chaptersFromParas(chapters[0].paras);
+    if (split.length > 1) return { title, author, chapters: split };
+  }
+  return { title, author, chapters };
+}
+
+async function parsePdf(buf, filename, onProgress) {
+  if (!window.pdfjsLib) throw new Error("The PDF reader didn't load. Check your connection and reload.");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+  let title = filename.replace(/\.[^.]+$/, ""), author = "";
+  try { const m = await pdf.getMetadata(); if (m?.info?.Title && m.info.Title.trim().length > 2) title = m.info.Title.trim(); if (m?.info?.Author) author = m.info.Author.trim(); } catch {}
+  const pages = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    if (onProgress && i % 5 === 1) onProgress(`Reading page ${i} of ${pdf.numPages}…`);
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+    const items = tc.items.filter(it => typeof it.str === "string");
+    const lines = [];
+    for (const it of items) {
+      const y = it.transform[5], x = it.transform[4], h = Math.abs(it.transform[3]) || it.height || 10;
+      let ln = lines.find(l => Math.abs(l.y - y) < Math.max(2, h * 0.35));
+      if (!ln) { ln = { y, x, h, parts: [] }; lines.push(ln); }
+      ln.parts.push({ x, s: it.str, w: it.width || 0 }); ln.x = Math.min(ln.x, x); ln.h = Math.max(ln.h, h);
+    }
+    lines.sort((a, b) => b.y - a.y);
+    for (const l of lines) {
+      l.parts.sort((a, b) => a.x - b.x);
+      let s = ""; let end = null;
+      for (const p of l.parts) { if (s && end !== null && p.x - end > 1.5 && !/\s$/.test(s) && !/^\s/.test(p.s)) s += " "; s += p.s; end = p.x + p.w; }
+      l.text = s.replace(/\s+/g, " ").trim();
+    }
+    pages.push(lines.filter(l => l.text));
+  }
+  const total = pages.reduce((a, p) => a + p.reduce((b, l) => b + l.text.length, 0), 0);
+  if (total < 200) throw new Error("This PDF has no text to read. It's probably scanned images, which this app can't read.");
+
+  // repeated headers/footers
+  // running headers/footers: same text (digits ignored) at the same height on many pages, in small type
+  const hs = pages.flat().map(l => l.h).sort((a, b) => a - b);
+  const bodyH = hs[Math.floor(hs.length / 2)] || 10;
+  const key = l => l.text.replace(/\d+/g, "#").toLowerCase() + "@" + Math.round(l.y / 6);
+  const freq = {};
+  for (const p of pages) { const ends = [p[0], p[1], p[p.length - 1], p[p.length - 2]].filter(Boolean); new Set(ends.map(key)).forEach(k => (freq[k] = (freq[k] || 0) + 1)); }
+  const isJunk = (l, idx, arr) => {
+    if (/^(page\s*)?\d{1,4}(\s*(of|\/)\s*\d+)?$/i.test(l.text)) return true;
+    const edge = idx < 2 || idx >= arr.length - 2;
+    return edge && pages.length > 4 && l.h <= bodyH * 1.1 && l.text.length < 100 && (freq[key(l)] || 0) > pages.length * 0.45;
+  };
+
+  // lines -> paragraphs, tracking start page
+  const paras = []; // {text, page}
+  let open = null;
+  pages.forEach((lines, pi) => {
+    const kept = lines.filter((l, i, a) => !isJunk(l, i, a));
+    const gaps = []; for (let i = 1; i < kept.length; i++) gaps.push(kept[i - 1].y - kept[i].y);
+    const sorted = gaps.filter(g => g > 0).sort((a, b) => a - b);
+    const med = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 14;
+    const minX = kept.length ? Math.min(...kept.map(l => l.x)) : 0;
+    kept.forEach((l, i) => {
+      let newPara = !open;
+      if (open && i > 0) {
+        const gap = kept[i - 1].y - l.y;
+        const prev = kept[i - 1].text;
+        if (gap > med * 1.55) newPara = true;
+        else if (l.x > minX + 8 && /[.!?"”’:)]$/.test(prev)) newPara = true;
+        else if (l.h > kept[i - 1].h * 1.25 || kept[i - 1].h > l.h * 1.25) newPara = true;
+      } else if (open && i === 0) {
+        // carry over from the previous page unless the last paragraph ended a sentence
+        newPara = /[.!?"”’:)]$/.test(open.text) && (l.x > minX + 8 || /^[A-Z“"]/.test(l.text));
+      }
+      if (newPara) { open = { text: l.text, page: pi, h: l.h }; paras.push(open); }
+      else open.text = /[A-Za-z]-$/.test(open.text) && /^[a-z]/.test(l.text) ? open.text.slice(0, -1) + l.text : open.text + " " + l.text;
+    });
+  });
+  const clean = paras.map(p => ({ ...p, text: p.text.replace(/\s+/g, " ").trim() })).filter(p => p.text);
+
+  // chapters from the PDF's own bookmarks
+  let chapters = null;
+  try {
+    const outline = await pdf.getOutline();
+    if (outline && outline.length >= 2) {
+      const marks = [];
+      for (const it of outline) {
+        try {
+          const dest = typeof it.dest === "string" ? await pdf.getDestination(it.dest) : it.dest;
+          if (dest && dest[0]) marks.push({ title: it.title.trim(), page: await pdf.getPageIndex(dest[0]) });
+        } catch {}
+      }
+      marks.sort((a, b) => a.page - b.page);
+      if (marks.length >= 2) {
+        const out = [];
+        marks.forEach((m, i) => {
+          const endPage = i + 1 < marks.length ? marks[i + 1].page : Infinity;
+          const ps = clean.filter(p => p.page >= m.page && p.page < endPage).map(p => p.text);
+          const lc = s => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+          if (ps.length > 1 && ps[0].length < 90 && (lc(m.title).startsWith(lc(ps[0])) || lc(ps[0]).startsWith(lc(m.title)))) ps.shift();
+          if (ps.length) out.push({ title: m.title, paras: ps });
+        });
+        const before = clean.filter(p => p.page < marks[0].page).map(p => p.text);
+        if (before.length && before.join(" ").length > 300) out.unshift({ title: "Front matter", paras: before });
+        if (out.length >= 2) chapters = out;
+      }
+    }
+  } catch {}
+  if (!chapters) {
+    const texts = clean.map(p => p.text);
+    const viaHeadings = chaptersFromParas(texts, 1e9);
+    if (viaHeadings.length >= 2) chapters = viaHeadings;
+    else {
+      const per = 10; chapters = [];
+      for (let p0 = 0; p0 < pages.length; p0 += per) {
+        const ps = clean.filter(p => p.page >= p0 && p.page < p0 + per).map(p => p.text);
+        if (ps.length) chapters.push({ title: `Pages ${p0 + 1}–${Math.min(p0 + per, pages.length)}`, paras: ps });
+      }
+    }
+  }
+  return { title, author, chapters };
+}
+
+async function importFile(file) {
+  const ext = (file.name.split(".").pop() || "").toLowerCase();
+  const st = $("#libStatus");
+  setStatus(st, `Opening ${file.name}…`, "busy");
+  try {
+    let parsed;
+    if (ext === "txt" || file.type === "text/plain") parsed = parseTxt(await file.text(), file.name);
+    else if (ext === "epub") parsed = await parseEpub(await file.arrayBuffer(), file.name);
+    else if (ext === "pdf") parsed = await parsePdf(await file.arrayBuffer(), file.name, m => setStatus(st, m, "busy"));
+    else throw new Error("That file type isn't supported. Use a PDF, EPUB or TXT file.");
+    parsed.chapters = parsed.chapters.filter(c => c.paras.length);
+    const words = parsed.chapters.reduce((a, c) => a + wordCount(c.paras.join(" ")), 0);
+    const book = { id: uid(), title: parsed.title, author: parsed.author, format: ext.toUpperCase(), chapters: parsed.chapters, words, summaries: {}, bookSummary: "", createdAt: Date.now() };
+    await DB.put("books", book);
+    setStatus(st, "");
+    await openBook(book.id);
+    go("book");
+    toast(`Added “${book.title}” · ${book.chapters.length} chapters`);
+  } catch (err) {
+    console.error(err);
+    setStatus(st, err.message || "Couldn't open that file.", "err");
+  }
+}
+
+/* ============================== Gemini API ============================== */
+const API = "https://generativelanguage.googleapis.com/v1beta";
+class GemError extends Error { constructor(msg, status, daily) { super(msg); this.status = status; this.daily = daily; } }
+
+function needKey() {
+  if (S.key) return true;
+  toast("Add your free Gemini API key in Settings first.");
+  openSettings();
+  return false;
+}
+async function gemFetch(path, body, { onStatus, method = "POST", stream = false } = {}) {
+  if (!S.key) throw new GemError("Add your Gemini API key in Settings.", 0);
+  for (let attempt = 0; ; attempt++) {
+    let res;
+    try {
+      res = await fetch(`${API}/${path}`, { method, headers: { "Content-Type": "application/json", "x-goog-api-key": S.key }, body: body ? JSON.stringify(body) : undefined });
+    } catch (e) {
+      throw new GemError("Couldn't reach Google. Check your internet connection.", 0);
+    }
+    if (res.ok) return stream ? res : res.json();
+    let j = {}; try { j = await res.json(); } catch {}
+    const msg = j?.error?.message || res.statusText || "Request failed";
+    const daily = /per.?day|PerDay|daily/i.test(JSON.stringify(j));
+    if (res.status === 400 && /api key/i.test(msg)) throw new GemError("Google says this API key isn't valid. Check it in Settings.", 400);
+    if (res.status === 403) throw new GemError("This key isn't allowed to use that model. Open Settings and tap “Test key” to see what it can use.", 403);
+    if (res.status === 404) throw new GemError(`Model not found (${path.split(":")[0].replace("models/", "")}). Google may have renamed it; change it in Settings.`, 404);
+    if ((res.status === 429 || res.status >= 500) && !daily && attempt < 4) {
+      let wait = 6 * (attempt + 1);
+      const rd = (j?.error?.details || []).find(d => d.retryDelay)?.retryDelay; if (rd) wait = Math.min(65, Math.ceil(parseFloat(rd)) + 1);
+      for (let s = wait; s > 0; s--) { onStatus?.(`Google's free limit is busy. Retrying in ${s}s…`); await sleep(1000); }
+      continue;
+    }
+    if (res.status === 429) throw new GemError(daily ? "You've used today's free limit for this model. It resets tomorrow, or you can pick another model in Settings." : "Google's free limit is busy right now. Wait a minute and try again.", 429, daily);
+    throw new GemError(msg, res.status);
+  }
+}
+function textOf(r) {
+  const c = r?.candidates?.[0];
+  if (!c) { const why = r?.promptFeedback?.blockReason; throw new GemError(why ? `Google blocked this request (${why}).` : "Gemini returned an empty answer.", 0); }
+  return (c.content?.parts || []).filter(p => p.text && !p.thought).map(p => p.text).join("");
+}
+async function genText({ model = S.textModel, system, contents, prompt, json, schema, tools, temperature = 0.7, onStatus }) {
+  const body = { contents: contents || [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { temperature } };
+  if (system) body.systemInstruction = { parts: [{ text: system }] };
+  if (json) { body.generationConfig.responseMimeType = "application/json"; if (schema) body.generationConfig.responseSchema = schema; }
+  if (tools) body.tools = tools;
+  const r = await gemFetch(`models/${encodeURIComponent(model)}:generateContent`, body, { onStatus });
+  return { text: textOf(r), raw: r };
+}
+async function genJSON(opts) {
+  const { text } = await genText({ ...opts, json: true });
+  try { return JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, "")); }
+  catch { const m = text.match(/[\[{][\s\S]*[\]}]/); if (m) return JSON.parse(m[0]); throw new GemError("Gemini's reply wasn't in the expected format. Try again.", 0); }
+}
+// Streams text as it's written (server-sent events). Returns the full text plus any web-search metadata.
+async function genStream({ model = S.textModel, system, contents, tools, temperature = 0.4, onDelta, onStatus }) {
+  const body = { contents, generationConfig: { temperature } };
+  if (system) body.systemInstruction = { parts: [{ text: system }] };
+  if (tools) body.tools = tools;
+  const res = await gemFetch(`models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, body, { onStatus, stream: true });
+  const reader = res.body.getReader(); const dec = new TextDecoder();
+  let buf = "", text = "", grounding = null, blocked = null;
+  const handle = line => {
+    if (!line.startsWith("data:")) return;
+    const s = line.slice(5).trim(); if (!s || s === "[DONE]") return;
+    let j; try { j = JSON.parse(s); } catch { return; }
+    if (j.error) throw new GemError(j.error.message || "Streaming failed", j.error.code || 0);
+    if (j.promptFeedback?.blockReason) blocked = j.promptFeedback.blockReason;
+    const c = j.candidates?.[0]; if (!c) return;
+    const add = (c.content?.parts || []).filter(p => p.text && !p.thought).map(p => p.text).join("");
+    if (add) { text += add; onDelta?.(text); }
+    if (c.groundingMetadata) {
+      grounding = grounding || { groundingChunks: [] };
+      if (c.groundingMetadata.groundingChunks) grounding.groundingChunks.push(...c.groundingMetadata.groundingChunks);
+    }
+  };
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let k; while ((k = buf.indexOf("\n")) >= 0) { handle(buf.slice(0, k).replace(/\r$/, "")); buf = buf.slice(k + 1); }
+  }
+  if (buf) handle(buf);
+  if (!text && blocked) throw new GemError(`Google blocked this request (${blocked}).`, 0);
+  return { text, grounding };
+}
+
+/* ---------- accuracy helpers: paragraph ids, quote checks ---------- */
+const pid = (ci, pi) => `${ci + 1}.${pi + 1}`;
+function parsePid(s) {
+  const m = /^(\d+)(?:\.(\d+))?$/.exec(String(s).trim()); if (!m || !BOOK) return null;
+  const ci = +m[1] - 1, pi = m[2] ? +m[2] - 1 : 0;
+  if (!BOOK.chapters[ci] || (m[2] && !BOOK.chapters[ci].paras[pi])) return null;
+  return { ci, pi, whole: !m[2] };
+}
+function numberedChapter(b, ci, maxChars = 1e9) {
+  let out = `## ${b.chapters[ci].title} (chapter ${ci + 1})\n`;
+  for (let pi = 0; pi < b.chapters[ci].paras.length; pi++) {
+    const line = `[¶${pid(ci, pi)}] ${b.chapters[ci].paras[pi]}\n`;
+    if (out.length + line.length > maxChars) { out += "[…chapter continues]\n"; break; }
+    out += line;
+  }
+  return out;
+}
+const normQ = s => s.toLowerCase().replace(/[‘’ʼ`]/g, "'").replace(/[“”«»]/g, '"').replace(/[–—]/g, "-").replace(/[^a-z0-9' ]+/g, " ").replace(/\s+/g, " ").trim();
+let NORM = null;
+function normBook() {
+  if (NORM?.id === BOOK.id && NORM.n === BOOK.chapters.length && NORM.v === BOOK._v) return NORM;
+  NORM = { id: BOOK.id, n: BOOK.chapters.length, v: BOOK._v, paras: BOOK.chapters.map(c => c.paras.map(normQ)) };
+  return NORM;
+}
+// Finds quoted passages (4+ words) in a text and checks that each one really appears in the book.
+function checkQuotes(text) {
+  const out = []; const re = /["“]([^"”\n]{12,600})["”]/g; let m;
+  const nb = normBook();
+  while ((m = re.exec(text))) {
+    const raw = m[1];
+    if (raw.trim().split(/\s+/).length < 4) continue;
+    const parts = raw.split(/\s*(?:\.\.\.|…)\s*/).map(normQ).filter(p => p.split(" ").length >= 3);
+    if (!parts.length) continue;
+    let where = null;
+    outer: for (let ci = 0; ci < nb.paras.length; ci++) for (let pi = 0; pi < nb.paras[ci].length; pi++) {
+      if (nb.paras[ci][pi].includes(parts[0])) {
+        const joined = nb.paras[ci].slice(pi, pi + 3).join(" ");
+        if (parts.every(p => joined.includes(p))) { where = pid(ci, pi); break outer; }
+      }
+    }
+    out.push({ quote: raw, found: !!where, where });
+  }
+  return out;
+}
+function citesIn(text) {
+  const ids = []; const re = /\[¶\s*([^\]]+)\]/g; let m;
+  while ((m = re.exec(text))) m[1].split(/[,;]\s*|\s+/).forEach(t => { const id = t.replace(/^¶/, "").trim(); if (/^\d+(\.\d+)?$/.test(id)) ids.push(id); else { const r = /^(\d+)\.(\d+)[–-](\d+)$/.exec(id); if (r) for (let k = +r[2]; k <= +r[3] && k < +r[2] + 8; k++) ids.push(`${r[1]}.${k}`); } });
+  return ids;
+}
+function paraText(id) { const p = parsePid(id); if (!p) return null; return p.whole ? BOOK.chapters[p.ci].paras.slice(0, 6).join("\n") : BOOK.chapters[p.ci].paras[p.pi]; }
+function citeChip(id) {
+  const p = parsePid(id);
+  if (!p) return `<span class="cite bad" title="This reference doesn't exist in the book">¶${esc(id)}?</span>`;
+  return `<button type="button" class="cite" data-pid="${esc(id)}" title="Open this paragraph">ch ${p.ci + 1}${p.whole ? "" : " ¶" + (p.pi + 1)}</button>`;
+}
+function jumpTo(id) {
+  const p = parsePid(id); if (!p) return;
+  stopReading(); R.ch = p.ci; R.idx = p.pi; go("reader");
+  const el = $(`.para[data-i="${p.pi}"]`);
+  if (el) { el.scrollIntoView({ block: "center" }); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 2600); }
+}
+document.addEventListener("click", e => { const c = e.target.closest(".cite[data-pid]"); if (c) { e.preventDefault(); jumpTo(c.dataset.pid); } });
+
+/* ---------- speech (Gemini TTS) ---------- */
+const isLegacyTts = m => /^gemini-(2\.5|3\.1)-.*tts/.test(m);
+const stripTags = t => t.replace(/<[^>]{1,24}>/g, "").replace(/\|[^|]{1,30}\|/g, "").replace(/\s{2,}/g, " ").trim();
+function b64ToBytes(b64) { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+function findAudio(obj) {
+  const hits = [];
+  (function walk(o) {
+    if (!o || typeof o !== "object") return;
+    if (Array.isArray(o)) { o.forEach(walk); return; }
+    if (typeof o.data === "string" && o.data.length > 100 && (o.type === "audio" || /audio/.test(o.mime_type || o.mimeType || ""))) hits.push({ data: o.data, mime: o.mime_type || o.mimeType || "" });
+    const inl = o.inlineData || o.inline_data;
+    if (inl && typeof inl.data === "string") hits.push({ data: inl.data, mime: inl.mimeType || inl.mime_type || "" });
+    for (const k in o) if (k !== "data" && k !== "inlineData" && k !== "inline_data") walk(o[k]);
+  })(obj);
+  return hits;
+}
+function pcmFromAudio(bytes, mime) {
+  // WAV (RIFF) → strip header; otherwise raw 16-bit 24 kHz PCM
+  if (bytes.length > 44 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) {
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    let off = 12, rate = 24000;
+    while (off + 8 <= bytes.length) {
+      const id = String.fromCharCode(bytes[off], bytes[off + 1], bytes[off + 2], bytes[off + 3]); const size = dv.getUint32(off + 4, true);
+      if (id === "fmt ") rate = dv.getUint32(off + 12, true);
+      if (id === "data") return { pcm: bytes.slice(off + 8, off + 8 + Math.min(size, bytes.length - off - 8)), rate };
+      off += 8 + size + (size % 2);
+    }
+    return { pcm: bytes.slice(44), rate };
+  }
+  const m = /rate=(\d+)/.exec(mime || ""); return { pcm: bytes, rate: m ? +m[1] : 24000 };
+}
+function wavBlob(chunks, rate = 24000) {
+  const len = chunks.reduce((a, c) => a + c.length, 0);
+  const buf = new ArrayBuffer(44 + len); const dv = new DataView(buf); const u = new Uint8Array(buf);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) u[o + i] = s.charCodeAt(i); };
+  w(0, "RIFF"); dv.setUint32(4, 36 + len, true); w(8, "WAVE"); w(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, rate, true); dv.setUint32(28, rate * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, "data"); dv.setUint32(40, len, true);
+  let o = 44; for (const c of chunks) { u.set(c, o); o += c.length; }
+  return new Blob([buf], { type: "audio/wav" });
+}
+const nameOf = s => (s === "A" ? S.aName : s === "B" ? S.bName : "Narrator");
+async function ttsSegment(turns, { onStatus } = {}) {
+  // turns: [{s:'A'|'B'|'N', text, style}]
+  const model = S.ttsModel;
+  const multi = turns.some(t => t.s === "A" || t.s === "B");
+  let r;
+  const doInteractions = () => gemFetch("interactions", {
+    model,
+    input: [{ type: "user_input", content: turns.map(t => ({ type: "text", text: t.text, annotations: [Object.assign({ type: "speech_metadata" }, multi ? { speaker: nameOf(t.s) } : {}, t.style ? { style: t.style } : {})] })) }],
+    response_format: { type: "audio", mime_type: "audio/l16", sample_rate: 24000 },
+    generation_config: { speech_config: multi ? { mode: "conversational", speakers: [{ speaker: S.aName, voice: S.aVoice }, { speaker: S.bName, voice: S.bVoice }] } : [{ voice: S.nVoice }] },
+  }, { onStatus });
+  const doLegacy = () => {
+    const text = multi
+      ? `Read this conversation between ${S.aName} and ${S.bName} naturally, like a relaxed podcast:\n` + turns.map(t => `${nameOf(t.s)}: ${stripTags(t.text)}`).join("\n")
+      : turns.map(t => stripTags(t.text)).join("\n\n");
+    return gemFetch(`models/${encodeURIComponent(model)}:generateContent`, {
+      contents: [{ parts: [{ text }] }],
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: multi
+          ? { multiSpeakerVoiceConfig: { speakerVoiceConfigs: [{ speaker: S.aName, voiceConfig: { prebuiltVoiceConfig: { voiceName: S.aVoice } } }, { speaker: S.bName, voiceConfig: { prebuiltVoiceConfig: { voiceName: S.bVoice } } }] } }
+          : { voiceConfig: { prebuiltVoiceConfig: { voiceName: S.nVoice } } },
+      },
+    }, { onStatus });
+  };
+  if (isLegacyTts(model)) r = await doLegacy();
+  else {
+    try { r = await doInteractions(); }
+    catch (e) { if (e.status === 404 || e.status === 400) r = await doLegacy(); else throw e; }
+  }
+  const hits = findAudio(r);
+  if (!hits.length) throw new GemError("Google didn't send any audio back. Try again, or check the voice model in Settings.", 0);
+  const h = hits[hits.length - 1];
+  return pcmFromAudio(b64ToBytes(h.data), h.mime);
+}
+function groupTurns(turns, maxChars = 2400, maxTurns = 14) {
+  const out = []; let cur = [], n = 0;
+  for (const t of turns) {
+    if (cur.length && (n + t.text.length > maxChars || cur.length >= maxTurns)) { out.push(cur); cur = []; n = 0; }
+    cur.push(t); n += t.text.length;
+  }
+  if (cur.length) out.push(cur);
+  return out;
+}
+async function recordTurns(turns, { onStatus } = {}) {
+  const groups = groupTurns(turns, turns[0]?.s === "N" ? 3200 : 2400);
+  const chunks = []; let t = 0, rate = 24000;
+  for (let gi = 0; gi < groups.length; gi++) {
+    onStatus?.(`Recording part ${gi + 1} of ${groups.length}…`);
+    const g = groups[gi];
+    const { pcm, rate: r } = await ttsSegment(g, { onStatus });
+    rate = r; chunks.push(pcm);
+    const dur = pcm.length / (rate * 2);
+    const tot = g.reduce((a, x) => a + x.text.length, 0) || 1;
+    for (const x of g) { x.t0 = t; t += dur * (x.text.length / tot); x.t1 = t; }
+  }
+  return { blob: wavBlob(chunks, rate), duration: t };
+}
+
+/* ============================== app state ============================== */
+let BOOK = null;
+const R = { ch: 0, playing: false, idx: 0, chunkQ: [], selected: -1 };
+let EP = null;           // current episode
+let CHAT = [];           // [{role:'user'|'model', text, sources}]
+let ASK_CTX = null;      // paragraph text attached to next question
+
+const bookText = (b, ci) => b.chapters[ci].paras.join("\n\n");
+const bookChars = b => b.chapters.reduce((a, c) => a + c.paras.reduce((x, p) => x + p.length + 2, 0), 0);
+
+async function openBook(id) {
+  stopReading(); stopPlayer();
+  BOOK = id ? await DB.get("books", id) : null;
+  S.lastBook = BOOK?.id || ""; saveSettings();
+  R.ch = 0; R.idx = 0; R.selected = -1; EP = null; CHAT = []; ASK_CTX = null;
+  renderNav(); renderLibrary(); renderBook(); renderReader(); renderStudio(); renderAsk();
+}
+async function saveBook() { if (BOOK) await DB.put("books", BOOK); }
+
+/* ============================== navigation ============================== */
+const TABS = [["library", "Library"], ["book", "Book"], ["reader", "Read"], ["studio", "Studio"], ["ask", "Ask"]];
+let VIEW = "library";
+function renderNav() {
+  const html = TABS.map(([k, l]) => `<button class="tab" role="tab" data-tab="${k}" aria-selected="${VIEW === k}" ${k !== "library" && !BOOK ? "disabled" : ""}>${ICON[k === "reader" ? "reader" : k]}<span>${l}</span></button>`).join("");
+  $("#tabsBottom").innerHTML = html; $("#tabsTop").innerHTML = html;
+  $("#nowbook").textContent = BOOK ? BOOK.title : "";
+}
+function go(v) {
+  if (v !== "library" && !BOOK) v = "library";
+  VIEW = v;
+  for (const [k] of TABS) $("#v-" + k).hidden = k !== v;
+  renderNav();
+  window.scrollTo({ top: 0 });
+  if (v === "reader") renderReader();
+  if (v === "studio") renderEpisodes();
+  try { history.replaceState(null, "", "#" + v); } catch {}
+}
+document.addEventListener("click", e => { const t = e.target.closest("[data-tab]"); if (t && !t.disabled) go(t.dataset.tab); });
+
+/* ============================== library ============================== */
+const HUES = [["#d8b46a", "#a87c3c"], ["#83c9bb", "#3f8c7f"], ["#b9a3f2", "#7860c4"], ["#e39a86", "#b0604d"], ["#9fbfe8", "#5b80b5"], ["#cfd17f", "#8f9142"]];
+async function renderLibrary() {
+  const books = (await DB.all("books")).sort((a, b) => b.createdAt - a.createdAt);
+  $("#keyNotice").hidden = !!S.key;
+  $("#shelf").innerHTML = books.length ? books.map((b, i) => {
+    const [c1, c2] = HUES[[...b.id].reduce((a, ch) => a + ch.charCodeAt(0), 0) % HUES.length];
+    return `<div class="bookcard ${BOOK?.id === b.id ? "cur" : ""}" data-open="${b.id}" role="button" tabindex="0">
+      <div class="spine" style="--c1:${c1};--c2:${c2}">${esc((b.title || "?").trim()[0] || "?")}</div>
+      <div class="meta"><div class="t">${esc(b.title)}</div><div class="small muted">${esc(b.author || b.format)}</div>
+      <div class="small muted mono">${fmtNum(b.words)} words · ${b.chapters.length} ch</div>
+      <div class="row" style="margin-top:6px"><button class="btn sm ghost danger" data-delbook="${b.id}">Remove</button></div></div></div>`;
+  }).join("") : `<div class="muted small">No books yet.</div>`;
+}
+$("#shelf").addEventListener("click", async e => {
+  const del = e.target.closest("[data-delbook]");
+  if (del) {
+    e.stopPropagation();
+    if (del.dataset.confirm !== "1") { del.dataset.confirm = "1"; del.textContent = "Tap to confirm"; setTimeout(() => { del.dataset.confirm = ""; del.textContent = "Remove"; }, 3000); return; }
+    const id = del.dataset.delbook;
+    for (const ep of await DB.byBook(id)) await DB.del("episodes", ep.id);
+    await DB.del("books", id);
+    if (BOOK?.id === id) await openBook(null); else renderLibrary();
+    toast("Book removed"); return;
+  }
+  const card = e.target.closest("[data-open]");
+  if (card) { if (BOOK?.id !== card.dataset.open) await openBook(card.dataset.open); go("book"); }
+});
+$("#shelf").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches("[data-open]")) e.target.click(); });
+const drop = $("#drop"), fileIn = $("#fileIn");
+drop.addEventListener("click", () => fileIn.click());
+drop.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileIn.click(); } });
+fileIn.addEventListener("change", () => { if (fileIn.files[0]) importFile(fileIn.files[0]); fileIn.value = ""; });
+["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (f) importFile(f); });
+$("#keyNoticeLink").addEventListener("click", e => { e.preventDefault(); openSettings(); });
+
+/* ============================== book overview ============================== */
+function renderBook() {
+  const v = $("#v-book");
+  if (!BOOK) { v.innerHTML = ""; return; }
+  const b = BOOK;
+  const mins = Math.round(b.words / 230);
+  const hasSum = Object.keys(b.summaries || {}).length > 0;
+  const preview = [];
+  let w = 0;
+  for (const c of b.chapters) { for (const p of c.paras) { preview.push(p); w += wordCount(p); if (w > 2500) break; } if (w > 2500) break; }
+  v.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="eyebrow">${esc(b.format)}${b.author ? " · " + esc(b.author) : ""}</div>
+      <h1>${esc(b.title)}</h1>
+    </div>
+    <div class="stats">
+      <div><span class="small muted">Words</span><b>${fmtNum(b.words)}</b></div>
+      <div><span class="small muted">Chapters</span><b>${b.chapters.length}</b></div>
+      <div><span class="small muted">Reading time</span><b>${mins >= 60 ? Math.floor(mins / 60) + "h " + (mins % 60) + "m" : mins + "m"}</b></div>
+      <div><span class="small muted">Characters</span><b>${fmtNum(bookChars(b))}</b></div>
+    </div>
+    ${b.bookSummary ? `<div class="panel"><div class="eyebrow" style="margin-bottom:8px">The book in brief</div><div style="font-family:var(--f-read);font-size:1.08rem;line-height:1.6">${esc(b.bookSummary)}</div></div>` : ""}
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="row" style="justify-content:space-between">
+        <h2>Chapters</h2>
+        <button class="btn ${hasSum ? "ghost" : "primary"} sm" id="sumBtn">${hasSum ? "Redo summaries" : "Summarize every chapter"}</button>
+      </div>
+      <div class="status" id="sumStatus"></div>
+      <div class="outline">${b.chapters.map((c, i) => {
+        const s = b.summaries?.[i];
+        return `<div class="ch"><div class="n mono">${String(i + 1).padStart(2, "0")}</div><div class="body">
+          <h3>${esc(c.title)}</h3>
+          <div class="small muted mono">${fmtNum(wordCount(c.paras.join(" ")))} words · ${c.paras.length} paragraphs</div>
+          ${s ? `<div class="sum">${esc(s.summary)}</div>${s.keyConcepts?.length ? `<div class="concepts">${s.keyConcepts.map(k => `<span class="chip">${esc(k)}</span>`).join("")}</div>` : ""}` : ""}
+          <div class="row"><button class="btn sm ghost" data-read="${i}">Read</button><button class="btn sm ghost" data-pod="${i}">Make episode</button><button class="btn sm ghost" data-askch="${i}">Ask about it</button></div>
+        </div></div>`;
+      }).join("")}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <h2>Preview</h2>
+      <div class="preview">${preview.map(p => `<p>${esc(p)}</p>`).join("")}<p class="muted small">…continues in the reader.</p></div>
+    </div>`;
+  $("#sumBtn").addEventListener("click", () => summarizeBook());
+  v.querySelectorAll("[data-read]").forEach(x => x.addEventListener("click", () => { R.ch = +x.dataset.read; R.idx = 0; go("reader"); }));
+  v.querySelectorAll("[data-pod]").forEach(x => x.addEventListener("click", () => { go("studio"); $("#epSource").value = "ch:" + x.dataset.pod; }));
+  v.querySelectorAll("[data-askch]").forEach(x => x.addEventListener("click", () => { go("ask"); const q = $("#askIn"); q.value = `What are the main ideas of “${BOOK.chapters[+x.dataset.askch].title}”?`; q.focus(); }));
+}
+
+const SUM_SCHEMA = { type: "OBJECT", properties: { chapters: { type: "ARRAY", items: { type: "OBJECT", properties: { index: { type: "INTEGER" }, summary: { type: "STRING" }, keyConcepts: { type: "ARRAY", items: { type: "STRING" } } }, required: ["index", "summary", "keyConcepts"] } } }, required: ["chapters"] };
+async function summarizeBook(silentStatusEl) {
+  if (!needKey()) return false;
+  const st = silentStatusEl || $("#sumStatus");
+  const btn = $("#sumBtn"); if (btn) btn.disabled = true;
+  try {
+    const b = BOOK; const LIMIT = 140000;
+    const groups = []; let cur = [], n = 0;
+    b.chapters.forEach((c, i) => {
+      const t = bookText(b, i); const len = Math.min(t.length, LIMIT);
+      if (cur.length && n + len > LIMIT) { groups.push(cur); cur = []; n = 0; }
+      cur.push(i); n += len;
+    });
+    if (cur.length) groups.push(cur);
+    b.summaries = {};
+    for (let gi = 0; gi < groups.length; gi++) {
+      setStatus(st, groups.length > 1 ? `Summarizing chapters (batch ${gi + 1} of ${groups.length})…` : "Summarizing chapters…", "busy");
+      const g = groups[gi];
+      const src = g.map(i => `=== CHAPTER ${i}: ${b.chapters[i].title} ===\n${bookText(b, i).slice(0, LIMIT)}`).join("\n\n");
+      const out = await genJSON({
+        system: "You summarize book chapters for a reader who wants to learn. Be faithful to the text. Plain, vivid language.",
+        prompt: `Book: "${b.title}"${b.author ? " by " + b.author : ""}.\nFor each chapter below, write a 2–4 sentence summary and list 3–6 key concepts (short noun phrases, terms of art, or names a reader should remember). Use the chapter's index number exactly as given. If a section is front matter (copyright, contents, acknowledgments), say so in one short sentence and give no concepts.\n\n${src}`,
+        schema: SUM_SCHEMA, temperature: 0.3, onStatus: m => setStatus(st, m, "busy"),
+      });
+      for (const c of out.chapters || []) if (g.includes(c.index)) b.summaries[c.index] = { summary: c.summary, keyConcepts: (c.keyConcepts || []).slice(0, 6) };
+      await saveBook(); renderBook(); if (!silentStatusEl) setStatus($("#sumStatus"), `Summarizing… ${gi + 1}/${groups.length} batches done`, "busy");
+    }
+    if (b.chapters.length > 1) {
+      setStatus(silentStatusEl || $("#sumStatus"), "Writing the book overview…", "busy");
+      const { text } = await genText({ prompt: `Using these chapter summaries of "${b.title}", write a 3–5 sentence overview of the whole book: what it's about, its main argument or story arc, and who would get the most out of it. Plain text, no headings.\n\n` + b.chapters.map((c, i) => `${c.title}: ${b.summaries[i]?.summary || ""}`).join("\n"), temperature: 0.4 });
+      b.bookSummary = text.trim();
+    }
+    await saveBook(); renderBook();
+    setStatus(silentStatusEl || $("#sumStatus"), "");
+    return true;
+  } catch (e) {
+    setStatus(silentStatusEl || $("#sumStatus"), e.message, "err"); return false;
+  } finally { const b2 = $("#sumBtn"); if (b2) b2.disabled = false; }
+}
+
+/* ============================== reader (phone voices) ============================== */
+const synth = window.speechSynthesis;
+let browserVoices = [];
+function loadVoices() {
+  browserVoices = synth ? synth.getVoices() : [];
+  const sel = $("#sBrowserVoice");
+  const en = browserVoices.filter(v => /^en/i.test(v.lang)); const list = en.length ? en : browserVoices;
+  sel.innerHTML = `<option value="">Phone default</option>` + list.map(v => `<option value="${esc(v.name)}">${esc(v.name)} (${esc(v.lang)})</option>`).join("");
+  sel.value = S.browserVoice;
+}
+if (synth) { loadVoices(); synth.addEventListener?.("voiceschanged", loadVoices); }
+const pickVoice = name => browserVoices.find(v => v.name === name) || null;
+
+function renderReader() {
+  if (!BOOK) return;
+  R.ch = Math.min(R.ch, BOOK.chapters.length - 1);
+  $("#chSel").innerHTML = BOOK.chapters.map((c, i) => `<option value="${i}">${i + 1}. ${esc(c.title)}</option>`).join("");
+  $("#chSel").value = R.ch;
+  const c = BOOK.chapters[R.ch];
+  $("#page").innerHTML = `<h2>${esc(c.title)}</h2>` + c.paras.map((p, i) => `<p class="para" data-i="${i}">${esc(p)}</p>`).join("");
+  $("#prevCh").disabled = R.ch === 0; $("#nextCh").disabled = R.ch >= BOOK.chapters.length - 1;
+  $("#rRate").value = S.rate; $("#rRateLbl").textContent = (+S.rate).toFixed(1) + "×";
+  $("#rVoice").value = useGemVoice() ? "gemini" : "phone";
+  $("#rAudio").title = `Make a saved audio file of this chapter with a Gemini voice (about ${Math.max(1, Math.ceil(bookText(BOOK, R.ch).length / 3200))} voice requests). It keeps playing with the screen off.`;
+  $("#chToolPanel").hidden = true;
+  updateReadBtn();
+  if (R.playing) markPara(R.idx);
+}
+function updateReadBtn() { $("#rPlay").innerHTML = R.playing ? ICON.pause : ICON.play; $("#rPlay").setAttribute("aria-label", R.playing ? "Pause" : "Read aloud"); }
+function chunkText(t) {
+  const sents = t.match(/[^.!?…]+[.!?…]+["'”’)\]]*\s*|[^.!?…]+$/g) || [t];
+  const out = []; let cur = "", off = 0, start = 0;
+  for (const s of sents) {
+    if (cur && (cur + s).length > 220) { out.push({ text: cur, off: start }); start = off; cur = ""; }
+    cur += s; off += s.length;
+  }
+  if (cur) out.push({ text: cur, off: start });
+  return out;
+}
+function markPara(i) {
+  $$(".para.active").forEach(p => { p.classList.remove("active"); if (p.dataset.raw) { p.textContent = p.dataset.raw; delete p.dataset.raw; } });
+  const el = $(`.para[data-i="${i}"]`); if (!el) return;
+  el.classList.add("active");
+  const raw = el.textContent; el.dataset.raw = raw;
+  let html = "", re = /\S+|\s+/g, m;
+  while ((m = re.exec(raw))) html += /\s/.test(m[0][0]) ? m[0] : `<span class="w" data-o="${m.index}">${esc(m[0])}</span>`;
+  el.innerHTML = html;
+  el.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  if (L.on && L.mode === "reader") liveNote(liveMedia().where());
+}
+function markWord(charIdx) {
+  const el = $(".para.active"); if (!el) return;
+  let best = null;
+  for (const w of el.querySelectorAll(".w")) { if (+w.dataset.o <= charIdx) best = w; else break; }
+  el.querySelectorAll(".w.on").forEach(w => w.classList.remove("on"));
+  best?.classList.add("on");
+}
+function speakPara(i) {
+  if (!synth) { toast("This browser can't read aloud."); return; }
+  const c = BOOK.chapters[R.ch];
+  if (i >= c.paras.length) {
+    if (R.ch < BOOK.chapters.length - 1) { R.ch++; R.idx = 0; renderReader(); speakPara(0); }
+    else stopReading();
+    return;
+  }
+  R.idx = i; markPara(i);
+  const chunks = chunkText(c.paras[i]);
+  let k = 0;
+  const next = () => {
+    if (!R.playing) return;
+    if (k >= chunks.length) { speakPara(i + 1); return; }
+    const ch = chunks[k++];
+    const u = new SpeechSynthesisUtterance(ch.text);
+    u.rate = +S.rate; const v = pickVoice(S.browserVoice); if (v) { u.voice = v; u.lang = v.lang; }
+    u.onboundary = e => { if (e.name === "word" || e.charIndex >= 0) markWord(ch.off + e.charIndex); };
+    u.onend = () => next();
+    u.onerror = e => { if (e.error !== "interrupted" && e.error !== "canceled") next(); };
+    synth.speak(u);
+  };
+  next();
+}
+/* ---- Gemini voice for the reader: a few paragraphs per request, next batch prefetched ---- */
+const rdAudio = $("#rdAudio");
+const G = { cache: [], token: 0, seg: null, bookId: null };
+const useGemVoice = () => S.readVoice !== "phone" && !!S.key;
+function clearGemCache() { G.cache.forEach(s => s.url && URL.revokeObjectURL(s.url)); G.cache = []; G.seg = null; }
+function splitLong(text, max = 2600) {
+  if (text.length <= max) return [text];
+  const out = []; let cur = "";
+  for (const c of chunkText(text)) { if (cur && cur.length + c.text.length > max) { out.push(cur); cur = ""; } cur += c.text; }
+  if (cur) out.push(cur);
+  return out;
+}
+function getSeg(ch, i) {
+  if (G.bookId !== BOOK.id) { clearGemCache(); G.bookId = BOOK.id; }
+  const hit = G.cache.find(s => s.ch === ch && s.start <= i && i <= s.end && !s.failed);
+  if (hit) return hit;
+  const paras = BOOK.chapters[ch].paras;
+  let end = i, len = paras[i].length;
+  while (end + 1 < paras.length && len < 1200 && len + paras[end + 1].length <= 2600) { end++; len += paras[end].length; }
+  const seg = { ch, start: i, end };
+  seg.promise = (async () => {
+    const texts = paras.slice(i, end + 1);
+    const chunks = []; let rate = 24000;
+    for (const piece of splitLong(texts.join("\n\n"))) {
+      const r = await ttsSegment([{ s: "N", text: piece }]);
+      chunks.push(r.pcm); rate = r.rate;
+    }
+    const dur = chunks.reduce((a, c) => a + c.length, 0) / (rate * 2);
+    const total = texts.reduce((a, t) => a + t.length, 0) || 1;
+    let t = 0; seg.offsets = texts.map((tx, k) => { const o = { i: i + k, t0: t, len: tx.length }; t += dur * (tx.length / total); o.t1 = t; return o; });
+    seg.url = URL.createObjectURL(wavBlob(chunks, rate)); seg.dur = dur;
+    return seg;
+  })();
+  seg.promise.catch(() => { seg.failed = true; });
+  G.cache.push(seg);
+  while (G.cache.length > 6) { const old = G.cache.shift(); if (old.url) URL.revokeObjectURL(old.url); }
+  return seg;
+}
+async function gemPlayFrom(i) {
+  const my = ++G.token;
+  const c = BOOK.chapters[R.ch];
+  if (i >= c.paras.length) {
+    if (R.ch < BOOK.chapters.length - 1) { R.ch++; R.idx = 0; renderReader(); window.scrollTo({ top: 0 }); return gemPlayFrom(0); }
+    return stopReading();
+  }
+  R.idx = i; markPara(i);
+  const seg = getSeg(R.ch, i);
+  if (!seg.url) { $("#rPlay").innerHTML = '<span class="spin" style="border-top-color:var(--brass-ink)"></span>'; setStatus("#rStatus", "Getting the voice ready…", "busy"); }
+  try { await seg.promise; }
+  catch (e) {
+    if (my !== G.token) return;
+    setStatus("#rStatus", "");
+    toast(`Gemini voice didn't work: ${e.message} Using the phone voice for now.`, 6000);
+    updateReadBtn(); speakPara(i); return;
+  }
+  if (my !== G.token || !R.playing) return;
+  setStatus("#rStatus", ""); updateReadBtn();
+  G.seg = seg;
+  if (rdAudio.src !== seg.url) rdAudio.src = seg.url;
+  rdAudio.playbackRate = +S.rate;
+  const off = seg.offsets.find(o => o.i === i);
+  try { rdAudio.currentTime = off ? off.t0 : 0; } catch {}
+  try { await rdAudio.play(); } catch { toast("Tap play again to start the voice."); stopReading(); return; }
+  if ("mediaSession" in navigator) {
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({ title: c.title, artist: BOOK.title, album: "OmniBook reader" });
+      navigator.mediaSession.setActionHandler("play", () => startReading(R.idx));
+      navigator.mediaSession.setActionHandler("pause", () => stopReading());
+    } catch {}
+  }
+  // prefetch the next batch while this one plays
+  if (seg.end + 1 < c.paras.length) getSeg(R.ch, seg.end + 1);
+}
+rdAudio.addEventListener("timeupdate", () => {
+  const seg = G.seg; if (!seg || !R.playing || !seg.offsets) return;
+  const t = rdAudio.currentTime;
+  const o = seg.offsets.find(x => t >= x.t0 && t < x.t1) || seg.offsets[seg.offsets.length - 1];
+  if (o.i !== R.idx || !$(".para.active")) { R.idx = o.i; markPara(o.i); }
+  markWord(Math.floor(((t - o.t0) / Math.max(0.01, o.t1 - o.t0)) * o.len));
+});
+rdAudio.addEventListener("ended", () => { if (R.playing && G.seg) gemPlayFrom(G.seg.end + 1); });
+
+function startReading(i = R.idx) {
+  stopPlayer(); synth?.cancel(); G.token++; rdAudio.pause();
+  R.playing = true; updateReadBtn();
+  if (useGemVoice()) gemPlayFrom(i); else speakPara(i);
+}
+function stopReading() {
+  R.playing = false; G.token++;
+  try { rdAudio.pause(); } catch {}
+  try { synth?.cancel(); } catch {}
+  setStatus("#rStatus", ""); updateReadBtn(); $$(".para .w.on").forEach(w => w.classList.remove("on"));
+}
+$("#rPlay").addEventListener("click", () => (R.playing ? stopReading() : startReading()));
+$("#rStop").addEventListener("click", () => { stopReading(); R.idx = 0; $$(".para.active").forEach(p => p.classList.remove("active")); });
+$("#rRate").addEventListener("input", e => {
+  S.rate = +e.target.value; $("#rRateLbl").textContent = S.rate.toFixed(1) + "×"; saveSettings();
+  if (!R.playing) return;
+  if (useGemVoice()) rdAudio.playbackRate = S.rate; else startReading(R.idx);
+});
+$("#rVoice").addEventListener("change", e => {
+  S.readVoice = e.target.value; saveSettings();
+  if (S.readVoice === "gemini" && !S.key) { needKey(); return; }
+  if (R.playing) startReading(R.idx);
+});
+$("#chSel").addEventListener("change", e => { stopReading(); R.ch = +e.target.value; R.idx = 0; renderReader(); window.scrollTo({ top: 0 }); });
+$("#prevCh").addEventListener("click", () => { stopReading(); R.ch = Math.max(0, R.ch - 1); R.idx = 0; renderReader(); window.scrollTo({ top: 0 }); });
+$("#nextCh").addEventListener("click", () => { stopReading(); R.ch = Math.min(BOOK.chapters.length - 1, R.ch + 1); R.idx = 0; renderReader(); window.scrollTo({ top: 0 }); });
+
+// paragraph actions
+$("#page").addEventListener("click", e => {
+  const act = e.target.closest("[data-pa]");
+  if (act) {
+    const i = +act.dataset.i;
+    if (act.dataset.pa === "read") startReading(i);
+    if (act.dataset.pa === "ask") askAboutPara(i);
+    if (act.dataset.pa === "split") splitChapter(i);
+    $$(".para-actions").forEach(x => x.remove());
+    return;
+  }
+  const p = e.target.closest(".para"); if (!p) return;
+  const i = +p.dataset.i;
+  const had = p.nextElementSibling?.classList.contains("para-actions");
+  $$(".para-actions").forEach(x => x.remove());
+  if (had) return;
+  const bar = document.createElement("div"); bar.className = "para-actions";
+  bar.innerHTML = `<button class="btn sm" data-pa="read" data-i="${i}">${ICON.play} Read from here</button><button class="btn sm" data-pa="ask" data-i="${i}">Ask AI about this</button>${i > 0 ? `<button class="btn sm ghost" data-pa="split" data-i="${i}">New chapter here</button>` : ""}`;
+  p.after(bar);
+});
+function askAboutPara(i) {
+  const text = BOOK.chapters[R.ch].paras[i];
+  stopReading();
+  ASK_CTX = { text, chapter: BOOK.chapters[R.ch].title };
+  go("ask"); renderAskCtx();
+  sendAsk("Explain this paragraph in plain language, and how it fits into the chapter.");
+}
+async function splitChapter(i) {
+  const c = BOOK.chapters[R.ch];
+  BOOK.chapters.splice(R.ch + 1, 0, { title: c.paras[i].length < 80 ? c.paras[i] : `${c.title} (continued)`, paras: c.paras.slice(c.paras[i].length < 80 ? i + 1 : i) });
+  c.paras = c.paras.slice(0, i);
+  BOOK.summaries = {}; BOOK.bookSummary = ""; BOOK._v = (BOOK._v || 0) + 1; clearGemCache();
+  await saveBook(); R.ch++; R.idx = 0; renderReader(); renderBook(); renderStudio(); toast("Split into a new chapter. Summaries were cleared; redo them on the Book tab.");
+}
+$("#chTools").addEventListener("click", () => { const p = $("#chToolPanel"); p.hidden = !p.hidden; $("#chRename").value = BOOK.chapters[R.ch].title; $("#chMerge").disabled = R.ch === 0; });
+$("#chRenameSave").addEventListener("click", async () => { const v = $("#chRename").value.trim(); if (!v) return; BOOK.chapters[R.ch].title = v; await saveBook(); renderReader(); renderBook(); renderStudio(); toast("Chapter renamed"); });
+$("#chMerge").addEventListener("click", async () => {
+  if (R.ch === 0) return;
+  const prev = BOOK.chapters[R.ch - 1], c = BOOK.chapters[R.ch];
+  prev.paras.push(...c.paras); BOOK.chapters.splice(R.ch, 1); BOOK.summaries = {}; BOOK.bookSummary = ""; BOOK._v = (BOOK._v || 0) + 1; clearGemCache();
+  await saveBook(); R.ch--; renderReader(); renderBook(); renderStudio(); toast("Merged. Summaries were cleared; redo them on the Book tab.");
+});
+$("#rAudio").addEventListener("click", () => makeNarration(R.ch));
+
+/* ============================== podcast studio ============================== */
+const LEN = { short: { words: 450, label: "~3 min" }, standard: { words: 1200, label: "~8 min" }, deep: { words: 2200, label: "~15 min" } };
+function renderStudio() {
+  if (!BOOK) return;
+  const sel = $("#epSource"); const prev = sel.value;
+  sel.innerHTML = `<option value="book">The whole book</option>` + BOOK.chapters.map((c, i) => `<option value="ch:${i}">Ch ${i + 1}: ${esc(c.title)}</option>`).join("");
+  if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+  $("#hostCards").innerHTML = `
+    <div class="host"><span class="dot a"></span><div style="min-width:0"><b>${esc(S.aName)}</b><div class="small muted">Curious learner · ${esc(S.aVoice)}</div></div></div>
+    <div class="host"><span class="dot b"></span><div style="min-width:0"><b>${esc(S.bName)}</b><div class="small muted">Deep explainer · ${esc(S.bVoice)}</div></div></div>`;
+  $$("#epLen button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === S.epLen));
+  renderEpisodes();
+}
+$("#epLen").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.epLen = b.dataset.v; saveSettings(); $$("#epLen button").forEach(x => x.setAttribute("aria-pressed", x === b)); });
+
+async function renderEpisodes() {
+  if (!BOOK) return;
+  const eps = (await DB.byBook(BOOK.id)).sort((a, b) => b.createdAt - a.createdAt);
+  $("#eplist").innerHTML = eps.length ? eps.map(ep => `
+    <div class="ep ${EP?.id === ep.id ? "cur" : ""}">
+      <span class="dot ${ep.kind === "narration" ? "" : "a"}" style="${ep.kind === "narration" ? "background:var(--brass)" : ""}"></span>
+      <div class="meta"><div class="t">${esc(ep.title)}</div><div class="small muted"><span class="mono">${ep.audio ? fmtTime(ep.duration) : "phone voices"}</span> · ${esc(ep.scopeLabel)}${ep.kind === "narration" ? " · narration" : ""}</div></div>
+      <button class="btn sm" data-epplay="${ep.id}">${ICON.play} Play</button>
+      <button class="btn sm ghost danger" data-epdel="${ep.id}" aria-label="Delete episode">×</button>
+    </div>`).join("") : `<div class="muted small" style="padding:12px 0">No episodes yet. Record one above, or use “Save as audio” in the reader.</div>`;
+}
+$("#eplist").addEventListener("click", async e => {
+  const p = e.target.closest("[data-epplay]"), d = e.target.closest("[data-epdel]");
+  if (p) { const ep = await DB.get("episodes", p.dataset.epplay); loadEpisode(ep, true); }
+  if (d) {
+    if (d.dataset.confirm !== "1") { d.dataset.confirm = "1"; d.textContent = "Delete?"; setTimeout(() => { d.dataset.confirm = ""; d.textContent = "×"; }, 3000); return; }
+    if (EP?.id === d.dataset.epdel) { stopPlayer(); EP = null; $("#player").hidden = true; }
+    await DB.del("episodes", d.dataset.epdel); renderEpisodes();
+  }
+});
+
+function sourceFor(val) {
+  const b = BOOK;
+  if (val === "book") {
+    const full = bookChars(b) <= 150000;
+    const sums = Object.keys(b.summaries || {}).length === b.chapters.length;
+    if (full) return { label: "Whole book", text: b.chapters.map((c, i) => numberedChapter(b, i)).join("\n"), ids: "paragraph" };
+    if (sums) return { label: "Whole book", ids: "chapter", text: (b.bookSummary ? `OVERVIEW: ${b.bookSummary}\n\n` : "") + b.chapters.map((c, i) => `## [¶${i + 1}] Chapter ${i + 1}: ${c.title}\nSummary: ${b.summaries[i].summary}\nKey concepts: ${b.summaries[i].keyConcepts.join(", ")}`).join("\n\n") };
+    return null; // needs summaries first
+  }
+  const i = +val.split(":")[1];
+  return { label: `Ch ${i + 1}: ${b.chapters[i].title}`, text: numberedChapter(b, i, 180000), chapter: i, ids: "paragraph" };
+}
+const SCRIPT_SCHEMA = { type: "OBJECT", properties: { title: { type: "STRING" }, turns: { type: "ARRAY", items: { type: "OBJECT", properties: { speaker: { type: "STRING", enum: ["A", "B"] }, text: { type: "STRING" }, style: { type: "STRING" }, cites: { type: "ARRAY", items: { type: "STRING" } } }, required: ["speaker", "text"] } } }, required: ["title", "turns"] };
+const citeRule = src => src.ids === "chapter"
+  ? `Each source section is labelled [¶N] where N is the chapter number. For every turn that states something from the book, put the chapter numbers it relies on in "cites" (for example ["3"]).`
+  : `Each source paragraph is labelled [¶C.P] (chapter.paragraph). For every turn that states something from the book, put the paragraph ids it relies on in "cites" (for example ["2.14","2.15"]). Banter and questions need no cites. Never cite an id that isn't in the source.`;
+const FIX_SCHEMA = { type: "OBJECT", properties: { issues: { type: "ARRAY", items: { type: "OBJECT", properties: { index: { type: "INTEGER" }, problem: { type: "STRING" }, action: { type: "STRING", enum: ["fix", "cut"] }, fixedText: { type: "STRING" } }, required: ["index", "problem", "action"] } } }, required: ["issues"] };
+// Second pass: a separate, strict Gemini call compares every line of the script with the source and repairs what isn't supported.
+async function factCheck(turns, src, onStatus) {
+  const script = turns.map((t, i) => `#${i} ${nameOf(t.s)}: ${stripTags(t.text)}${t.cites?.length ? `  (cites ${t.cites.join(", ")})` : ""}`).join("\n");
+  const out = await genJSON({
+    system: "You are a strict fact-checker for a podcast about a book. You compare each line of a script against the SOURCE text. You flag only factual problems: claims, numbers, names, events, quotes or explanations that the source does not support, or that contradict it, or that cite the wrong paragraph. Opinions, reactions, questions, jokes and plain-language paraphrases of what the source says are fine. Quoted words in quotation marks must match the source exactly.",
+    prompt: `For each problem line, give its #index, the problem in a few words, and either action "fix" with fixedText (the same line rewritten so it is accurate, same speaker voice, similar length, spoken words only) or action "cut" if it can't be saved. If every line is accurate, return an empty issues list.\n\nSOURCE:\n${src.text}\n\nSCRIPT:\n${script}`,
+    schema: FIX_SCHEMA, temperature: 0.1, onStatus,
+  });
+  let fixed = 0, cut = 0;
+  const byIdx = new Map((out.issues || []).map(x => [x.index, x]));
+  const kept = [];
+  turns.forEach((t, i) => {
+    const iss = byIdx.get(i);
+    if (iss && iss.action === "cut") { cut++; return; }
+    if (iss && iss.action === "fix" && iss.fixedText?.trim()) { kept.push({ ...t, text: iss.fixedText.trim(), fixed: iss.problem }); fixed++; return; }
+    kept.push(t);
+  });
+  return { turns: kept, fixed, cut };
+}
+function flagTurns(turns) {
+  let flagged = 0;
+  for (const t of turns) {
+    t.cites = (t.cites || []).filter(id => parsePid(id));
+    const bad = checkQuotes(t.text).filter(q => !q.found);
+    if (bad.length) { t.flag = `Quote not found in the book: “${bad[0].quote.slice(0, 80)}”`; flagged++; }
+  }
+  return flagged;
+}
+function hostBrief() {
+  return `${S.aName} (speaker "A") is the curious learner: asks the questions a smart newcomer would, reacts honestly, sums up in plain words, sometimes pushes back.
+${S.bName} (speaker "B") is the deep explainer: knows the book well, explains clearly with concrete examples from the text, connects ideas, and admits when the book doesn't say something.`;
+}
+const tagRule = () => isLegacyTts(S.ttsModel)
+  ? "Do not use any stage directions, brackets or tags in the text; write only the spoken words."
+  : "Write only spoken words. You may very occasionally use one inline vocal tag in angle brackets such as <laugh>, <sigh> or <short pause> (at most one every few turns). Put delivery notes like 'amused' or 'thoughtful' in the optional style field (2–4 words), not in the text.";
+
+async function makeEpisode(scriptOnly) {
+  if (!needKey()) return;
+  stopReading();
+  const st = $("#epStatus"); const btns = [$("#epMake"), $("#epScriptOnly")]; btns.forEach(b => (b.disabled = true));
+  try {
+    const val = $("#epSource").value;
+    let src = sourceFor(val);
+    if (!src) {
+      setStatus(st, "This book is long, so I'm summarizing every chapter first…", "busy");
+      if (!(await summarizeBook(st))) return;
+      src = sourceFor(val);
+    }
+    const len = LEN[S.epLen] || LEN.standard;
+    const focus = $("#epFocus").value.trim();
+    setStatus(st, "Writing the script…", "busy");
+    const out = await genJSON({
+      system: `You write scripts for "OmniBook", a two-host podcast that helps listeners understand a book they're reading.\n${hostBrief()}\nRules: stay faithful to the book; never invent facts, quotes or events that aren't in the source. Sound like real people talking: short turns (1–4 sentences), contractions, natural reactions, the occasional quick back-and-forth. Use the hosts' names, never "Host A". No sound effects, no music cues. Only put words in quotation marks when quoting the source word for word. ${citeRule(src)} ${tagRule()}`,
+      prompt: `Book: "${BOOK.title}"${BOOK.author ? " by " + BOOK.author : ""}.\nEpisode covers: ${src.label}.\nTarget length: about ${len.words} spoken words.${focus ? `\nListener's request: ${focus}` : ""}\nStructure: a quick friendly open that says what this episode covers; the main ideas in a logical order with concrete examples from the text; one or two moments where ${S.aName} checks understanding by putting it in their own words; a short wrap-up with the 2–3 things to remember.\nGive the episode a short title (no "Episode" prefix).\n\nSOURCE:\n${src.text}`,
+      schema: SCRIPT_SCHEMA, temperature: 0.85, onStatus: m => setStatus(st, m, "busy"),
+    });
+    let turns = (out.turns || []).filter(t => t.text && t.text.trim()).map(t => ({ s: t.speaker === "B" ? "B" : "A", text: t.text.trim(), style: (t.style || "").trim().slice(0, 40), cites: (t.cites || []).map(String).slice(0, 6) }));
+    if (turns.length < 2) throw new GemError("The script came back empty. Try again.", 0);
+    setStatus(st, "Fact-checking every line against the book…", "busy");
+    const check = { fixed: 0, cut: 0, flagged: 0 };
+    try {
+      const fc = await factCheck(turns, src, m => setStatus(st, m, "busy"));
+      turns = fc.turns; check.fixed = fc.fixed; check.cut = fc.cut;
+    } catch (e) { check.skipped = e.message; }
+    check.flagged = flagTurns(turns);
+    const ep = { id: uid(), bookId: BOOK.id, kind: "podcast", title: out.title || src.label, scopeLabel: src.label, scopeVal: val, turns, check, createdAt: Date.now(), audio: null, duration: 0 };
+    if (!scriptOnly) {
+      try {
+        const { blob, duration } = await recordTurns(turns, { onStatus: m => setStatus(st, m, "busy") });
+        ep.audio = blob; ep.duration = duration;
+      } catch (e) {
+        await DB.put("episodes", ep); renderEpisodes(); loadEpisode(ep, false);
+        setStatus(st, `The script is saved, but recording failed: ${e.message} You can play it with phone voices for now.`, "err");
+        return;
+      }
+    }
+    await DB.put("episodes", ep);
+    setStatus(st, "");
+    renderEpisodes();
+    loadEpisode(ep, true);
+    toast(ep.audio ? `Recorded “${ep.title}” · ${fmtTime(ep.duration)}` : "Script ready. Playing with phone voices.");
+  } catch (e) {
+    console.error(e); setStatus(st, e.message, "err");
+  } finally { btns.forEach(b => (b.disabled = false)); }
+}
+$("#epMake").addEventListener("click", () => makeEpisode(false));
+$("#epScriptOnly").addEventListener("click", () => makeEpisode(true));
+
+async function makeNarration(ci) {
+  if (!needKey()) return;
+  stopReading();
+  go("studio");
+  const st = $("#epStatus");
+  try {
+    const c = BOOK.chapters[ci];
+    const turns = [{ s: "N", text: c.title + "." }, ...c.paras.map(p => ({ s: "N", text: p }))];
+    const { blob, duration } = await recordTurns(turns, { onStatus: m => setStatus(st, `Narrating “${c.title}”: ${m}`, "busy") });
+    const ep = { id: uid(), bookId: BOOK.id, kind: "narration", title: c.title, scopeLabel: `Ch ${ci + 1}`, scopeVal: "ch:" + ci, turns, audio: blob, duration, createdAt: Date.now() };
+    await DB.put("episodes", ep); setStatus(st, ""); renderEpisodes(); loadEpisode(ep, true);
+    toast(`Saved narration · ${fmtTime(duration)}`);
+  } catch (e) { setStatus(st, e.message, "err"); }
+}
+
+/* ---------- player ---------- */
+const audio = $("#epAudio"), ans = $("#ansAudio");
+const P = { mode: "audio", speechIdx: 0, speaking: false, inCall: false, url: null, curTurn: -1 };
+function loadEpisode(ep, autoplay) {
+  stopPlayer(); stopReading();
+  EP = ep; $("#player").hidden = false;
+  $("#plKind").textContent = ep.kind === "narration" ? "Narration" : `${S.aName} & ${S.bName}`;
+  $("#plTitle").textContent = ep.title;
+  P.mode = ep.audio ? "audio" : "speech"; P.speechIdx = 0; P.curTurn = -1;
+  if (P.url) URL.revokeObjectURL(P.url);
+  if (ep.audio) { P.url = URL.createObjectURL(ep.audio); audio.src = P.url; audio.playbackRate = +$("#plRate").value; }
+  else { audio.removeAttribute("src"); audio.load(); }
+  $("#plDownload").hidden = !ep.audio;
+  const ck = ep.check;
+  $("#plNote").textContent = (ck ? (ck.skipped ? "Fact-check didn't run. " : `Fact-checked: ${ck.fixed} line${ck.fixed === 1 ? "" : "s"} corrected, ${ck.cut} cut${ck.flagged ? `, ${ck.flagged} flagged` : ""}. `) : "")
+    + (ep.audio ? "Keeps playing with the screen off." : "Phone voices stop when the screen locks. Record it for screen-off listening.");
+  $("#plDur").textContent = ep.audio ? fmtTime(ep.duration) : `${ep.turns.length} turns`;
+  $("#plSeek").disabled = !ep.audio;
+  renderTranscript(); updatePlayUI(); renderEpisodes();
+  $("#callPanel").hidden = true;
+  if ("mediaSession" in navigator) {
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({ title: ep.title, artist: ep.kind === "narration" ? "OmniBook narration" : `${S.aName} & ${S.bName}`, album: BOOK?.title || "OmniBook" });
+      navigator.mediaSession.setActionHandler("play", () => playerPlay());
+      navigator.mediaSession.setActionHandler("pause", () => playerPause());
+      navigator.mediaSession.setActionHandler("seekbackward", () => (audio.currentTime -= 15));
+      navigator.mediaSession.setActionHandler("seekforward", () => (audio.currentTime += 15));
+    } catch {}
+  }
+  $("#player").scrollIntoView({ block: "start", behavior: "smooth" });
+  if (autoplay) playerPlay();
+}
+function renderTranscript() {
+  if (!EP) return;
+  let html = "";
+  EP.turns.forEach((t, i) => {
+    if (t.caller) { if (t.callStart) html += `<div class="callmark">${t.live ? "You asked live" : "Listener call-in"}: “${esc(t.q)}”</div>`; }
+    const who = t.s === "N" ? "Narrator" : t.s === "U" ? "You" : nameOf(t.s);
+    const marks = (t.cites?.length ? `<span class="cites">${t.cites.map(citeChip).join("")}</span>` : "")
+      + (t.flag ? `<span class="flagnote" title="${esc(t.flag)}">⚠ ${esc(t.flag)}</span>` : "")
+      + (t.fixed ? `<span class="fixnote" title="${esc(t.fixed)}">Corrected by fact-check</span>` : "");
+    html += `<div class="turn ${t.s} ${t.caller ? "caller" : ""}" data-turn="${i}"><div class="who">${esc(who)}</div><div class="tx">${esc(stripTags(t.text))}${marks ? `<div class="marks">${marks}</div>` : ""}</div></div>`;
+  });
+  $("#transcript").innerHTML = html;
+}
+function isPlaying() { return P.mode === "audio" ? !audio.paused : P.speaking; }
+function updatePlayUI() {
+  const on = isPlaying() || P.inCall;
+  $("#plPlay").innerHTML = isPlaying() ? ICON.pause : ICON.play;
+  const lamp = $("#lamp");
+  lamp.classList.toggle("on", on && !P.inCall); lamp.classList.toggle("call", P.inCall);
+  lamp.querySelector("span").textContent = P.inCall ? "CALLER" : "ON AIR";
+}
+function highlightTurn(i) {
+  if (i === P.curTurn) return; P.curTurn = i;
+  $$(".turn.active").forEach(x => x.classList.remove("active"));
+  const el = $(`.turn[data-turn="${i}"]`);
+  if (el) { el.classList.add("active"); const box = $("#transcript"); const top = el.offsetTop - box.offsetTop - 40; box.scrollTo({ top, behavior: "smooth" }); }
+  if (L.on && L.mode === "episode") liveNote(liveMedia().where());
+}
+function turnAtTime(t) { const ts = EP.turns; for (let i = 0; i < ts.length; i++) if (!ts[i].caller && ts[i].t0 <= t && t < ts[i].t1) return i; return -1; }
+audio.addEventListener("timeupdate", () => {
+  if (!EP?.audio) return;
+  $("#plCur").textContent = fmtTime(audio.currentTime);
+  if (!P.seeking) $("#plSeek").value = Math.round((audio.currentTime / (EP.duration || audio.duration || 1)) * 1000);
+  const i = turnAtTime(audio.currentTime); if (i >= 0) highlightTurn(i);
+});
+["play", "pause", "ended"].forEach(ev => audio.addEventListener(ev, updatePlayUI));
+audio.addEventListener("loadedmetadata", () => { if (EP && isFinite(audio.duration)) { $("#plDur").textContent = fmtTime(audio.duration); } });
+$("#plSeek").addEventListener("input", e => { P.seeking = true; if (EP?.audio) $("#plCur").textContent = fmtTime((e.target.value / 1000) * (EP.duration || audio.duration)); });
+$("#plSeek").addEventListener("change", e => { P.seeking = false; if (EP?.audio) audio.currentTime = (e.target.value / 1000) * (EP.duration || audio.duration); });
+$("#plRate").addEventListener("change", e => { audio.playbackRate = +e.target.value; ans.playbackRate = +e.target.value; });
+$("#plBack").addEventListener("click", () => { if (P.mode === "audio") audio.currentTime = Math.max(0, audio.currentTime - 15); else speechJump(-1); });
+$("#plFwd").addEventListener("click", () => { if (P.mode === "audio") audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 15); else speechJump(1); });
+$("#plPlay").addEventListener("click", () => (isPlaying() ? playerPause() : playerPlay()));
+$("#transcript").addEventListener("click", e => {
+  const t = e.target.closest("[data-turn]"); if (!t || !EP || P.inCall) return;
+  const i = +t.dataset.turn; const turn = EP.turns[i]; if (turn.caller) return;
+  if (P.mode === "audio") { audio.currentTime = turn.t0 + 0.01; audio.play(); }
+  else { P.speechIdx = i; playerPlay(); }
+});
+$("#plDownload").addEventListener("click", () => {
+  if (!EP?.audio) return;
+  const a = document.createElement("a"); a.href = URL.createObjectURL(EP.audio);
+  a.download = `${(BOOK?.title || "OmniBook").slice(0, 40)} - ${EP.title}.wav`.replace(/[\\/:*?"<>|]+/g, "");
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+});
+
+function playerPlay() {
+  if (!EP) return; stopReading();
+  if (P.mode === "audio") { audio.play().catch(() => toast("Tap play again to start audio.")); }
+  else { P.speaking = true; speakTurn(P.speechIdx); }
+  updatePlayUI();
+}
+function playerPause() {
+  if (P.mode === "audio") audio.pause();
+  else { P.speaking = false; synth?.cancel(); }
+  updatePlayUI();
+}
+function stopPlayer() { try { audio.pause(); ans.pause(); } catch {} P.speaking = false; P.inCall = false; try { if (P.mode === "speech") synth?.cancel(); } catch {} updatePlayUI(); }
+
+// phone-voice playback for script-only episodes and fallbacks
+function hostVoices() {
+  const en = browserVoices.filter(v => /^en/i.test(v.lang)); const list = en.length ? en : browserVoices;
+  const a = pickVoice(S.browserVoice) || list[0] || null; const b = list.find(v => v !== a && v.lang === a?.lang) || list.find(v => v !== a) || a;
+  return { A: a, B: b, N: a };
+}
+function speakLine(turn, onend) {
+  const hv = hostVoices();
+  const u = new SpeechSynthesisUtterance(stripTags(turn.text));
+  const v = hv[turn.s] || null; if (v) { u.voice = v; u.lang = v.lang; }
+  u.rate = +$("#plRate").value; u.pitch = turn.s === "B" && hv.A === hv.B ? 0.8 : turn.s === "A" && hv.A === hv.B ? 1.15 : 1;
+  u.onend = onend; u.onerror = e => { if (e.error !== "interrupted" && e.error !== "canceled") onend(); };
+  synth.speak(u);
+}
+function speakTurn(i) {
+  if (!synth) { toast("This browser can't speak."); return; }
+  const turns = EP.turns;
+  while (i < turns.length && turns[i].caller) i++;
+  if (i >= turns.length) { P.speaking = false; P.speechIdx = 0; updatePlayUI(); return; }
+  P.speechIdx = i; highlightTurn(i);
+  speakLine(turns[i], () => { if (P.speaking && !P.inCall) speakTurn(i + 1); });
+}
+function speechJump(d) { const was = P.speaking; synth?.cancel(); P.speechIdx = Math.max(0, Math.min(EP.turns.length - 1, P.speechIdx + d)); if (was) { P.speaking = true; speakTurn(P.speechIdx); } else highlightTurn(P.speechIdx); }
+
+/* ---------- call-in ---------- */
+let callResume = null;
+$("#callBtn").addEventListener("click", () => {
+  if (!EP || P.inCall) return;
+  if (!S.key) { needKey(); return; }
+  const wasPlaying = isPlaying();
+  const resumeAt = P.mode === "audio" ? audio.currentTime : P.speechIdx;
+  playerPause();
+  callResume = { wasPlaying: true, at: resumeAt, mode: P.mode, turn: P.mode === "audio" ? turnAtTime(audio.currentTime) : P.speechIdx };
+  if (!wasPlaying) callResume.wasPlaying = false;
+  $("#callPanel").hidden = false; $("#callQ").value = ""; setStatus("#callStatus", "");
+  $("#callQ").focus();
+});
+$("#callCancel").addEventListener("click", () => endCall(true));
+$("#callQ").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("#callSend").click(); } });
+$("#callSend").addEventListener("click", async () => {
+  const q = $("#callQ").value.trim(); if (!q || !EP) return;
+  const st = $("#callStatus"); P.inCall = true; updatePlayUI();
+  $("#callSend").disabled = true;
+  try {
+    setStatus(st, `${S.aName} and ${S.bName} are thinking about your question…`, "busy");
+    const src = EP.scopeVal ? sourceFor(EP.scopeVal) : null;
+    const nowTurn = Math.max(0, callResume?.turn ?? 0);
+    const said = EP.turns.filter(t => !t.caller).slice(Math.max(0, nowTurn - 10), nowTurn + 1).map(t => `${nameOf(t.s)}: ${stripTags(t.text)}`).join("\n");
+    const context = src && src.ids === "paragraph" ? src.text.slice(0, 120000) + "\n\nOTHER PASSAGES THAT MAY HELP:\n" + searchPassages(q, 15000, 15) : bookContext(q, 60000);
+    const narration = EP.kind === "narration";
+    const out = await genJSON({
+      system: `You write live call-in segments for "OmniBook", a two-host podcast about the book "${BOOK.title}".\n${hostBrief()}\nA listener just called in with a question. Write 2–5 short turns: ${S.aName} briefly reads out or restates the question; ${S.bName} answers it clearly using facts from the book (say plainly if the book doesn't cover it); ${S.aName} adds a quick follow-up or plain-words summary; the last turn ${narration ? "says we'll go back to the reading" : "smoothly hands back to the episode, like 'okay, back to where we were'"}. Stay in character. Under 200 words total. Never invent facts or quotes. ${citeRule({ ids: "paragraph" })} ${tagRule()}`,
+      prompt: `${narration ? "The listener was listening to a narration of the book." : "What the hosts were just saying:\n" + said}\n\nLISTENER QUESTION: ${q}\n\nBOOK MATERIAL:\n${context}`,
+      schema: SCRIPT_SCHEMA, temperature: 0.7, onStatus: m => setStatus(st, m, "busy"),
+    });
+    const turns = (out.turns || []).filter(t => t.text?.trim()).map(t => ({ s: t.speaker === "B" ? "B" : "A", text: t.text.trim(), style: (t.style || "").slice(0, 40), cites: (t.cites || []).map(String).slice(0, 6), caller: true, q }));
+    if (!turns.length) throw new GemError("The hosts didn't come up with an answer. Try rephrasing.", 0);
+    flagTurns(turns);
+    turns[0].callStart = true;
+    // insert into transcript right after the current turn
+    const insertAt = Math.min(EP.turns.length, nowTurn + 1);
+    EP.turns.splice(insertAt, 0, ...turns);
+    renderTranscript();
+    $(`.turn[data-turn="${insertAt}"]`)?.scrollIntoView({ block: "nearest" });
+    if (P.mode === "speech") P.speechIdx = (callResume?.at ?? 0) + (insertAt <= (callResume?.at ?? 0) ? turns.length : 0);
+    let played = false;
+    try {
+      setStatus(st, "Putting you on air…", "busy");
+      const { pcm, rate } = await ttsSegment(turns);
+      const blob = wavBlob([pcm], rate);
+      if (ans.src) URL.revokeObjectURL(ans.src);
+      ans.src = URL.createObjectURL(blob); ans.playbackRate = +$("#plRate").value;
+      setStatus(st, "On air now.");
+      turns.forEach((t, k) => $(`.turn[data-turn="${insertAt + k}"]`)?.classList.add("active"));
+      await ans.play(); played = true;
+      await new Promise(res => { ans.onended = res; ans.onpause = () => { if (!P.inCall) res(); }; });
+    } catch (e) {
+      if (!played) {
+        setStatus(st, "Voice limit reached, so the hosts are answering with phone voices.");
+        await new Promise(res => { let k = 0; const next = () => { if (k >= turns.length || !P.inCall) return res(); speakLine(turns[k++], next); }; next(); });
+      }
+    }
+    await DB.put("episodes", { ...EP, turns: EP.turns });
+    endCall(true);
+  } catch (e) {
+    setStatus(st, e.message, "err"); P.inCall = false; updatePlayUI();
+  } finally { $("#callSend").disabled = false; }
+});
+function endCall(resume) {
+  P.inCall = false; try { ans.pause(); } catch {}
+  $("#callPanel").hidden = true; $$(".turn.active").forEach(x => x.classList.remove("active")); P.curTurn = -1;
+  if (resume && callResume?.wasPlaying) {
+    if (P.mode === "audio") { audio.currentTime = Math.max(0, callResume.at - 2); audio.play().catch(() => {}); }
+    else { P.speaking = true; speakTurn(P.speechIdx); }
+  }
+  callResume = null; updatePlayUI();
+}
+
+/* ---------- speech recognition (mic) ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+function attachMic(btn, input, onDone) {
+  if (!SR) { btn.hidden = true; return; }
+  let rec = null;
+  btn.addEventListener("click", () => {
+    if (rec) { rec.stop(); return; }
+    rec = new SR(); rec.lang = navigator.language || "en-US"; rec.interimResults = true; rec.continuous = false;
+    const base = input.value ? input.value.trim() + " " : "";
+    rec.onresult = e => { let t = ""; for (const r of e.results) t += r[0].transcript; input.value = base + t; };
+    rec.onerror = e => { if (e.error === "not-allowed") toast("Microphone access was blocked. Allow it in your browser's site settings."); else if (e.error !== "no-speech" && e.error !== "aborted") toast("Didn't catch that. Try again or type."); };
+    rec.onend = () => { btn.classList.remove("on"); rec = null; if (input.value.trim()) onDone?.(); };
+    btn.classList.add("on");
+    try { rec.start(); } catch { btn.classList.remove("on"); rec = null; }
+  });
+}
+attachMic($("#callMic"), $("#callQ"), () => $("#callSend").click());
+attachMic($("#askMic"), $("#askIn"));
+
+/* ============================== Ask (chat) ============================== */
+const STOP = new Set("the a an and or of to in on for with is are was were be been it its this that these those as at by from what which who whom how why when where does do did can could would should about into than then there their they them he she his her you your i me my we our not no yes if so but".split(" "));
+// Book material for the AI, every paragraph labelled [¶chapter.paragraph] so answers can cite it.
+function bookContext(query, maxChars = 120000) {
+  const b = BOOK;
+  if (bookChars(b) * 1.04 <= Math.min(maxChars, 200000)) return b.chapters.map((c, i) => numberedChapter(b, i)).join("\n");
+  let out = "";
+  const sums = b.summaries || {};
+  if (Object.keys(sums).length) out += "CHAPTER SUMMARIES (for orientation only; cite paragraphs, not summaries):\n" + b.chapters.map((c, i) => `- Chapter ${i + 1}, ${c.title}: ${sums[i]?.summary || ""}`).join("\n") + "\n\n";
+  out += "RELEVANT PASSAGES:\n" + searchPassages(query, maxChars - out.length);
+  return out;
+}
+function searchPassages(query, maxChars = 12000, limit = 40) {
+  const b = BOOK;
+  const toks = s => (s.toLowerCase().match(/[a-z0-9']{3,}/g) || []).filter(w => !STOP.has(w));
+  const q = Array.from(new Set(toks(query)));
+  const all = []; const df = {};
+  b.chapters.forEach((c, ci) => c.paras.forEach((p, pi) => { const t = new Set(toks(p)); all.push({ ci, pi, t }); t.forEach(w => (df[w] = (df[w] || 0) + 1)); }));
+  const N = all.length;
+  for (const a of all) a.score = q.reduce((s, w) => s + (a.t.has(w) ? Math.log(1 + N / (df[w] || 1)) : 0), 0);
+  const pick = new Set();
+  all.filter(a => a.score > 0).sort((x, y) => y.score - x.score).slice(0, limit).forEach(a => { pick.add(`${a.ci}:${a.pi}`); pick.add(`${a.ci}:${a.pi + 1}`); if (a.pi > 0) pick.add(`${a.ci}:${a.pi - 1}`); });
+  const keys = Array.from(pick).map(k => k.split(":").map(Number)).filter(([ci, pi]) => b.chapters[ci]?.paras[pi]).sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+  let out = "", lastCi = -1;
+  for (const [ci, pi] of keys) {
+    const line = (ci !== lastCi ? `\n## ${b.chapters[ci].title} (chapter ${ci + 1})\n` : "") + `[¶${pid(ci, pi)}] ${b.chapters[ci].paras[pi]}\n`;
+    if (out.length + line.length > maxChars) break;
+    out += line; lastCi = ci;
+  }
+  if (!out) out = "(No passages matched those words. Here is the start of each chapter.)\n" + b.chapters.map((c, ci) => `## ${c.title} (chapter ${ci + 1})\n` + c.paras.slice(0, 2).map((p, pi) => `[¶${pid(ci, pi)}] ${p}`).join("\n")).join("\n").slice(0, maxChars);
+  return out;
+}
+function renderAsk() {
+  if (!BOOK) return;
+  $("#askTitle").textContent = BOOK.title;
+  $("#askWeb").checked = !!S.web;
+  renderChat(); renderAskCtx();
+}
+function renderAskCtx() {
+  $("#askCtx").hidden = !ASK_CTX;
+  if (ASK_CTX) $("#askCtxText").textContent = `“${ASK_CTX.text}”`;
+}
+$("#askCtxX").addEventListener("click", () => { ASK_CTX = null; renderAskCtx(); });
+$("#askWeb").addEventListener("change", e => { S.web = e.target.checked; saveSettings(); });
+$("#askClear").addEventListener("click", () => { CHAT = []; ASK_CTX = null; renderChat(); renderAskCtx(); });
+function mdLite(src) {
+  let s = esc(src);
+  s = s.replace(/\[From Your Book\]/gi, '<span class="tagb">From your book</span>').replace(/\[From Web Search\]/gi, '<span class="tagw">From web search</span>');
+  s = s.replace(/\[¶\s*([^\]]+)\]/g, (m, inner) => { const ids = citesIn(`[¶${inner.replace(/&amp;/g, "&")}]`); return ids.length ? `<span class="cites">${ids.map(citeChip).join("")}</span>` : m; });
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  const lines = s.split("\n"); let html = "", list = null;
+  const close = () => { if (list) { html += `</${list}>`; list = null; } };
+  for (const ln of lines) {
+    let m;
+    if ((m = ln.match(/^\s*[-*•]\s+(.*)/))) { if (list !== "ul") { close(); html += "<ul>"; list = "ul"; } html += `<li>${m[1]}</li>`; }
+    else if ((m = ln.match(/^\s*\d+[.)]\s+(.*)/))) { if (list !== "ol") { close(); html += "<ol>"; list = "ol"; } html += `<li>${m[1]}</li>`; }
+    else if ((m = ln.match(/^#{1,4}\s+(.*)/))) { close(); html += `<p><strong>${m[1]}</strong></p>`; }
+    else if (ln.trim()) { close(); html += `<p>${ln}</p>`; }
+    else close();
+  }
+  close(); return html;
+}
+function checkHtml(c) {
+  if (!c) return "";
+  if (c.state === "pending") return `<div class="check"><span class="spin"></span><span>Checking this answer against the book…</span></div>`;
+  const issues = [];
+  c.badCites.forEach(id => issues.push(`Cites ¶${esc(id)}, which doesn't exist in the book.`));
+  c.badQuotes.forEach(q => issues.push(`This quote isn't in the book word for word: “${esc(q.quote.slice(0, 120))}”`));
+  (c.problems || []).forEach(p => issues.push(`${p.verdict === "partly" ? "Only partly supported" : "Not supported by the book"}: “${esc(p.claim.slice(0, 160))}”${p.note ? ` <span class="muted">(${esc(p.note)})</span>` : ""}`));
+  if (c.state === "error") return `<div class="check">Couldn't run the fact-check: ${esc(c.msg)}</div>` + (issues.length ? `<div class="check warn"><b>Double-check this:</b><ul>${issues.map(x => `<li>${x}</li>`).join("")}</ul></div>` : "");
+  if (!issues.length) return `<div class="check ok">✓ Checked against the book: ${c.total} claim${c.total === 1 ? "" : "s"} supported${c.outside ? `, ${c.outside} from outside the book` : ""}.</div>`;
+  return `<div class="check warn"><b>⚠ Double-check this:</b><ul>${issues.map(x => `<li>${x}</li>`).join("")}</ul></div>`;
+}
+function renderChat() {
+  const box = $("#chat");
+  if (!CHAT.length) {
+    box.innerHTML = `<div class="notice">Ask about characters, arguments, terms, or what a passage means. Every answer points to the paragraphs it comes from (tap <span class="cite" style="pointer-events:none">ch 3 ¶12</span> to open it) and is checked against the book. Turn on “Search the web too” for outside context; that part is tagged <span class="tagw">From web search</span>. Or tap <b>Talk live</b> to ask out loud.</div>`;
+    return;
+  }
+  const nearBottom = window.innerHeight + window.scrollY > document.body.scrollHeight - 220;
+  box.innerHTML = CHAT.map((m, i) => m.role === "user"
+    ? `<div class="msg user">${m.live ? '<span class="eyebrow">Spoken · </span>' : ""}${esc(m.text)}</div>`
+    : `<div class="msg bot">${m.live ? `<div class="eyebrow" style="margin-bottom:4px">${esc(S.bName)}, live</div>` : ""}${m.pending ? `<div class="status"><span class="spin"></span><span>${esc(m.text || "Thinking…")}</span></div>` : mdLite(m.text) + (m.streaming ? '<span class="caret"></span>' : "")}
+        ${m.note ? `<div class="small muted" style="font-family:var(--f-ui)">${esc(m.note)}</div>` : ""}
+        ${m.sources?.length ? `<div class="sources"><span class="eyebrow">Web sources</span>${m.sources.map(s => `<a href="${esc(s.uri)}" target="_blank" rel="noopener">${esc(s.title || s.uri)}</a>`).join("")}</div>` : ""}
+        ${checkHtml(m.check)}
+        ${!m.pending && !m.streaming && !m.err && !m.live && m.text ? `<div class="row" style="margin-top:6px"><button class="btn sm ghost" data-speak="${i}">${ICON.play} Listen</button></div>` : ""}
+      </div>`).join("");
+  if (nearBottom || CHAT[CHAT.length - 1]?.pending) box.lastElementChild?.scrollIntoView({ block: "end" });
+}
+const listenAudio = new Audio();
+$("#chat").addEventListener("click", async e => {
+  const b = e.target.closest("[data-speak]"); if (!b) return;
+  const m = CHAT[+b.dataset.speak];
+  const clean = m.text.replace(/\[(From (Your Book|Web Search)|¶[^\]]*)\]/gi, "").replace(/[*#]/g, "").replace(/\s{2,}/g, " ").trim();
+  synth?.cancel(); listenAudio.pause();
+  if (S.key && S.readVoice !== "phone") {
+    b.disabled = true; b.innerHTML = '<span class="spin"></span> Loading voice';
+    try { const { pcm, rate } = await ttsSegment([{ s: "N", text: clean }]); listenAudio.src = URL.createObjectURL(wavBlob([pcm], rate)); await listenAudio.play(); }
+    catch (err) { toast(`Gemini voice didn't work: ${err.message}`); }
+    finally { b.disabled = false; b.innerHTML = `${ICON.play} Listen`; }
+    return;
+  }
+  if (!synth) return;
+  const u = new SpeechSynthesisUtterance(clean); const v = pickVoice(S.browserVoice); if (v) u.voice = v; u.rate = +S.rate; synth.speak(u);
+});
+$("#askSend").addEventListener("click", () => { const q = $("#askIn").value.trim(); if (q) sendAsk(q); });
+$("#askIn").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !matchMedia("(pointer:coarse)").matches) { e.preventDefault(); $("#askSend").click(); } });
+$("#askIn").addEventListener("input", e => { e.target.style.height = "auto"; e.target.style.height = Math.min(180, e.target.scrollHeight) + "px"; });
+
+const VERIFY_SCHEMA = { type: "OBJECT", properties: { claims: { type: "ARRAY", items: { type: "OBJECT", properties: { claim: { type: "STRING" }, verdict: { type: "STRING", enum: ["supported", "partly", "not_supported", "outside_book"] }, note: { type: "STRING" } }, required: ["claim", "verdict"] } } }, required: ["claims"] };
+let chatRaf = 0;
+const renderChatSoon = () => { if (!chatRaf) chatRaf = requestAnimationFrame(() => { chatRaf = 0; renderChat(); }); };
+
+async function sendAsk(q) {
+  if (!needKey()) return;
+  const ctx = ASK_CTX; ASK_CTX = null; renderAskCtx();
+  $("#askIn").value = ""; $("#askIn").style.height = "auto";
+  CHAT.push({ role: "user", text: ctx ? `${q}\n\n(About: “${ctx.text.slice(0, 160)}${ctx.text.length > 160 ? "…" : ""}”)` : q });
+  const bot = { role: "model", pending: true, text: "Reading the book…" }; CHAT.push(bot); renderChat();
+  $("#askSend").disabled = true;
+  const web = $("#askWeb").checked;
+  const system = `You are OmniBook, a reading companion for "${BOOK.title}"${BOOK.author ? " by " + BOOK.author : ""}. Answer the reader's questions clearly and concisely, in plain language.
+Accuracy rules, which matter more than anything else:
+- Use only the BOOK MATERIAL for anything you say about the book. Every paragraph there is labelled like [¶3.12] (chapter 3, paragraph 12).
+- After every sentence or bullet that relies on the book, cite the paragraph ids it comes from in square brackets, like [¶3.12] or [¶3.12, ¶3.14]. Only cite ids that appear in the material.
+- Put words in quotation marks only when copying the book word for word.
+- If the material doesn't answer the question, say "The book doesn't say" (or that the passages you have don't cover it) instead of guessing.
+${web ? "- You can search the web for outside context (history, critiques, author background, definitions). After every sentence that relies on the web, add [From Web Search]. Prefer the book; use the web to add context, never to fill in what the book says." : "- Web search is off. If you add general knowledge, label it clearly as general knowledge, not from the book."}
+Use short paragraphs or bullets. No headings.`;
+  const material = bookContext((ctx ? ctx.text + " " : "") + q + " " + CHAT.filter(m => m.role === "user").slice(-3).map(m => m.text).join(" "), 120000);
+  const history = CHAT.filter(m => !m.pending && !m.err && !m.live).slice(-9, -1).map(m => ({ role: m.role, parts: [{ text: m.text }] }));
+  const userTurn = `BOOK MATERIAL:\n${material}\n\n${ctx ? `THE READER SELECTED THIS PARAGRAPH (from "${ctx.chapter}"):\n"${ctx.text}"\n\n` : ""}QUESTION: ${q}`;
+  const contents = [...history, { role: "user", parts: [{ text: userTurn }] }];
+  const onStatus = m => { bot.text = m; renderChatSoon(); };
+  const onDelta = t => { bot.pending = false; bot.streaming = true; bot.text = t; renderChatSoon(); };
+  try {
+    let r;
+    if (web) {
+      try { bot.text = "Reading the book and searching the web…"; renderChat(); r = await genStream({ model: S.searchModel, system, contents, tools: [{ google_search: {} }], onDelta, onStatus }); }
+      catch (e) {
+        if (e.status === 0 && /internet/.test(e.message)) throw e;
+        bot.note = `Web search didn't work (${e.message}) so this answer uses only your book.`;
+        r = await genStream({ system: system.replace(/- You can search the web[^\n]*/, "- Web search is unavailable right now: answer from the book only."), contents, onDelta, onStatus });
+      }
+    } else r = await genStream({ system, contents, onDelta, onStatus });
+    const seen = new Set();
+    bot.sources = (r.grounding?.groundingChunks || []).map(c => c.web).filter(w => w?.uri && !seen.has(w.uri) && seen.add(w.uri)).slice(0, 8);
+    bot.text = r.text.trim() || "I couldn't come up with an answer. Try rephrasing.";
+    bot.pending = false; bot.streaming = false;
+    renderChat();
+    verifyAnswer(bot, material);
+  } catch (e) {
+    bot.pending = false; bot.streaming = false; bot.err = true; bot.text = e.message;
+  } finally { $("#askSend").disabled = false; renderChat(); }
+}
+
+// Checks an answer two ways: the app itself checks quotes and paragraph ids, then a separate strict Gemini pass checks each claim.
+async function verifyAnswer(bot, material) {
+  const ids = citesIn(bot.text);
+  const badCites = ids.filter(id => !parsePid(id));
+  const badQuotes = checkQuotes(bot.text).filter(x => !x.found).filter(x => { const i = bot.text.indexOf(x.quote); const around = bot.text.slice(i, i + x.quote.length + 120); return !/From Web Search/i.test(around); });
+  bot.check = { state: "pending", badCites, badQuotes };
+  renderChatSoon();
+  try {
+    const cited = Array.from(new Set(ids.filter(id => parsePid(id)))).slice(0, 40).map(id => `[¶${id}] ${paraText(id)}`).join("\n");
+    const evidence = (cited ? "CITED PARAGRAPHS:\n" + cited + "\n\n" : "") + "OTHER BOOK MATERIAL:\n" + material.slice(0, 60000);
+    const out = await genJSON({
+      system: "You are a strict fact-checker. You check an answer about a book against the book's own text. Break the answer into its factual claims. For each, decide: supported (the book text clearly says this), partly (some of it is in the text, some is stretched or missing), not_supported (the text doesn't say this or contradicts it, or the cited paragraph is unrelated), or outside_book (the claim is labelled as web or general knowledge and isn't presented as coming from the book). Paraphrases are fine if the meaning matches. Give a short note for anything not supported.",
+      prompt: `ANSWER:\n${bot.text.replace(/\[From Web Search\]/gi, "(web)")}\n\n${evidence}`,
+      schema: VERIFY_SCHEMA, temperature: 0.1,
+    });
+    const claims = out.claims || [];
+    bot.check = { state: "done", badCites, badQuotes, total: claims.filter(c => c.verdict !== "outside_book").length, outside: claims.filter(c => c.verdict === "outside_book").length, problems: claims.filter(c => c.verdict === "not_supported" || c.verdict === "partly") };
+  } catch (e) { bot.check = { state: "error", badCites, badQuotes, msg: e.message }; }
+  renderChatSoon();
+}
+
+/* ============================== Live talk (Gemini Live) ============================== */
+const LIVE_WS = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
+const L = { on: false, ws: null, ready: false, gotSetup: false, mode: null, stream: null, inCtx: null, outCtx: null, node: null, analyser: null, nextT: 0, srcs: new Set(),
+  handle: null, userText: "", modelText: "", modelTalking: false, turnDone: false, held: false, ducked: false, muted: false, toolsLite: false, tries: 0,
+  resumeT: 0, watchT: 0, duckT: 0, floor: 0.01, loud: 0, micLvl: 0, wake: null, lastNote: "" };
+const MIC_WORKLET = `class M extends AudioWorkletProcessor{constructor(){super();this.r=sampleRate/16000;this.ph=0;this.acc=0;this.cnt=0;this.out=new Int16Array(640);this.n=0;this.e=0;this.k=0}
+process(ins){const c=ins[0]&&ins[0][0];if(!c)return true;let e=0;for(let i=0;i<c.length;i++){const x=c[i];e+=x*x;this.acc+=x;this.cnt++;this.ph+=1;if(this.ph>=this.r){this.ph-=this.r;let v=this.acc/this.cnt;this.acc=0;this.cnt=0;v=v<-1?-1:v>1?1:v;this.out[this.n++]=v<0?v*32768:v*32767;if(this.n===640){this.port.postMessage(this.out.buffer.slice(0));this.n=0}}}
+this.e+=e;this.k+=c.length;if(this.k>=2048){this.port.postMessage(Math.sqrt(this.e/this.k));this.e=0;this.k=0}return true}}
+registerProcessor('omni-mic',M);`;
+function abToB64(buf) { const u = new Uint8Array(buf); let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+
+// What the live line pauses and resumes: the episode, the reader, or nothing (Ask).
+function liveMedia() {
+  if (L.mode === "episode" && EP) return {
+    playing: () => isPlaying(),
+    pause: () => playerPause(),
+    resume: () => { if (P.mode === "audio") audio.currentTime = Math.max(0, audio.currentTime - 1.5); playerPlay(); },
+    vol: v => { audio.volume = v; },
+    where: () => { const i = P.mode === "audio" ? turnAtTime(audio.currentTime) : P.speechIdx; const t = EP.turns[i]; return t ? `The episode is at script line #${i}, ${nameOf(t.s)}: "${stripTags(t.text).slice(0, 300)}"` : "The episode hasn't started yet."; },
+  };
+  if (L.mode === "reader" && BOOK) return {
+    playing: () => R.playing,
+    pause: () => stopReading(),
+    resume: () => startReading(R.idx),
+    vol: v => { rdAudio.volume = v; },
+    where: () => `The listener is on chapter ${R.ch + 1} ("${BOOK.chapters[R.ch].title}"), paragraph [¶${pid(R.ch, R.idx)}]: "${(BOOK.chapters[R.ch].paras[R.idx] || "").slice(0, 300)}"`,
+  };
+  return { playing: () => false, pause() {}, resume() {}, vol() {}, where: () => "" };
+}
+function liveSystem() {
+  const b = BOOK; const m = liveMedia();
+  const sums = Object.keys(b.summaries || {}).length ? "CHAPTER SUMMARIES (orientation only):\n" + b.chapters.map((c, i) => `Chapter ${i + 1}, ${c.title}: ${b.summaries[i]?.summary || ""}`).join("\n") : "CHAPTERS:\n" + b.chapters.map((c, i) => `Chapter ${i + 1}: ${c.title}`).join("\n");
+  let focus = "";
+  if (L.mode === "episode" && EP) {
+    const src = EP.scopeVal ? sourceFor(EP.scopeVal) : null;
+    focus = `The listener is playing the episode "${EP.title}" (${EP.scopeLabel}). Its script, line by line:\n` + EP.turns.map((t, i) => t.caller ? null : `#${i} ${nameOf(t.s)}: ${stripTags(t.text)}`).filter(Boolean).join("\n").slice(0, 30000)
+      + (src ? `\n\nBOOK TEXT THE EPISODE COVERS:\n${src.text.slice(0, 60000)}` : "");
+  } else if (L.mode === "reader") focus = `The listener is reading chapter ${R.ch + 1}. Its text:\n${numberedChapter(b, R.ch, 60000)}`;
+  else if (bookChars(b) < 60000) focus = "THE WHOLE BOOK:\n" + b.chapters.map((c, i) => numberedChapter(b, i)).join("\n");
+  const where = m.where();
+  return `You are ${S.bName}, co-host of OmniBook, talking live by voice with a listener about the book "${b.title}"${b.author ? " by " + b.author : ""}. Your co-host ${S.aName} isn't on this live line. You are the deep explainer: warm, clear, curious, never stiff.
+How to talk: this is a real-time voice conversation and the listener is walking with headphones. Usually answer in 2 to 5 spoken sentences, conversationally, then stop. No lists, no reading out symbols, paragraph ids or brackets. If they cut you off, drop what you were saying and answer the new thing.
+Accuracy matters more than anything: say things about the book only if they're in the book text below or come back from the search_book tool. If the answer isn't in front of you, call search_book first. If the book doesn't say, tell them plainly. Never invent quotes, names, numbers or events. Mention where in the book when it helps ("early in chapter 3").
+${S.web ? "You can use Google Search for outside context (history, the author, critics, definitions). When you do, say it's from outside the book." : "If you add general knowledge, say it's general knowledge and not from the book."}
+${L.mode === "episode" ? "The episode pauses while you talk. When you've answered, end with a short natural handback, like 'okay, let's jump back in', and it will resume." : L.mode === "reader" ? "The reading pauses while you talk. When you've answered, say you'll pick the reading back up." : ""}
+Messages that start with [Position] tell you where the listener is in the book or episode. They're for your information; don't reply to them.
+${where ? "[Position] " + where : ""}
+
+${sums}
+
+${focus}`;
+}
+function liveTools() {
+  const t = [{ functionDeclarations: [{ name: "search_book", description: "Search the full text of the book for passages about a topic, name, event or term. Returns matching paragraphs labelled [¶chapter.paragraph]. Use it before answering anything you can't see in the text you already have.", parameters: { type: "OBJECT", properties: { query: { type: "STRING", description: "Words to look for, like a name, a term, or 'why the river rose'" } }, required: ["query"] } }] }];
+  if (S.web && !L.toolsLite) t.push({ googleSearch: {} });
+  return t;
+}
+function liveSend(obj) { if (L.ws && L.ws.readyState === 1) L.ws.send(JSON.stringify(obj)); }
+function liveConnect() {
+  L.ready = false; L.gotSetup = false;
+  let ws;
+  try { ws = new WebSocket(`${LIVE_WS}?key=${encodeURIComponent(S.key)}`); }
+  catch { return liveFail("Couldn't open the live connection."); }
+  L.ws = ws;
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ setup: {
+      model: `models/${S.liveModel}`,
+      generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: S.bVoice } } } },
+      systemInstruction: { parts: [{ text: liveSystem() }] },
+      tools: liveTools(),
+      realtimeInputConfig: { automaticActivityDetection: { disabled: false, endOfSpeechSensitivity: "END_SENSITIVITY_LOW", silenceDurationMs: 700 }, activityHandling: "START_OF_ACTIVITY_INTERRUPTS" },
+      inputAudioTranscription: {}, outputAudioTranscription: {},
+      sessionResumption: L.handle ? { handle: L.handle } : {},
+      contextWindowCompression: { slidingWindow: {} },
+    } }));
+  };
+  ws.onmessage = async ev => {
+    if (L.ws !== ws) return;
+    const txt = typeof ev.data === "string" ? ev.data : await ev.data.text();
+    let m; try { m = JSON.parse(txt); } catch { return; }
+    liveMsg(m);
+  };
+  ws.onclose = ev => {
+    if (L.ws !== ws) return;
+    L.ready = false;
+    if (!L.on) return;
+    if (!L.gotSetup && S.web && !L.toolsLite) { L.toolsLite = true; return liveConnect(); } // retry without web search
+    if (!L.gotSetup && L.tries >= 1) return liveFail(ev.reason ? `Google closed the connection: ${ev.reason}` : "Couldn't start live talk. Check the live model in Settings.");
+    if (L.tries++ < 4) { liveStatus("connecting", "Reconnecting…"); setTimeout(() => L.on && liveConnect(), 700 * L.tries); }
+    else liveFail("The live connection keeps dropping. Check your signal and try again.");
+  };
+}
+function liveFail(msg) { toast(msg, 7000); liveStop(); }
+function liveMsg(m) {
+  if (m.setupComplete) { L.ready = true; L.gotSetup = true; L.tries = 0; liveStatus(L.muted ? "muted" : "listening"); }
+  if (m.sessionResumptionUpdate?.resumable && m.sessionResumptionUpdate.newHandle) L.handle = m.sessionResumptionUpdate.newHandle;
+  if (m.goAway) setTimeout(() => { if (!L.on) return; const old = L.ws; L.ws = null; try { old?.close(); } catch {} liveConnect(); }, L.modelTalking ? 1500 : 100);
+  if (m.toolCall?.functionCalls) {
+    liveStatus("looking");
+    const functionResponses = m.toolCall.functionCalls.map(fc => fc.name === "search_book"
+      ? { id: fc.id, name: fc.name, response: { result: searchPassages(String(fc.args?.query || ""), 9000, 14) } }
+      : { id: fc.id, name: fc.name, response: { error: "Unknown tool" } });
+    liveSend({ toolResponse: { functionResponses } });
+  }
+  const sc = m.serverContent; if (!sc) return;
+  if (sc.interrupted) { stopOut(); L.modelTalking = false; L.turnDone = false; }
+  if (sc.inputTranscription?.text) { L.userText += sc.inputTranscription.text; onUserSpeech(); liveStatus("you"); }
+  for (const part of sc.modelTurn?.parts || []) {
+    const inl = part.inlineData || part.inline_data;
+    if (inl?.data && /audio/.test(inl.mimeType || inl.mime_type || "audio/pcm")) { holdMedia(); playOut(inl.data, inl.mimeType || inl.mime_type); }
+  }
+  if (sc.outputTranscription?.text) { L.modelText += sc.outputTranscription.text; liveStatus("speaking"); }
+  if (sc.turnComplete) finishLiveTurn();
+}
+function onUserSpeech() { clearTimeout(L.resumeT); L.turnDone = false; holdMedia(); armWatchdog(); }
+function holdMedia() {
+  const m = liveMedia();
+  if (L.ducked) { L.ducked = false; m.vol(1); }
+  if (!L.held && m.playing()) { m.pause(); L.held = true; }
+  armWatchdog();
+}
+function armWatchdog() { clearTimeout(L.watchT); L.watchT = setTimeout(() => { if (L.held && !L.modelTalking) scheduleResume(0); }, 9000); }
+function scheduleResume(delay = 1600) {
+  clearTimeout(L.resumeT);
+  L.resumeT = setTimeout(() => {
+    if (!L.on || L.modelTalking || L.srcs.size) return;
+    if (L.held) { L.held = false; liveMedia().resume(); }
+    liveStatus(L.muted ? "muted" : "listening");
+  }, delay);
+}
+function finishLiveTurn() {
+  const q = L.userText.trim(), a = L.modelText.trim();
+  L.userText = ""; L.modelText = ""; L.turnDone = true;
+  if (q || a) liveRecord(q, a);
+  if (!L.srcs.size) { L.modelTalking = false; scheduleResume(); }
+}
+function liveRecord(q, a) {
+  if (L.mode === "episode" && EP && a) {
+    const cur = P.mode === "audio" ? turnAtTime(audio.currentTime) : P.speechIdx;
+    const insertAt = Math.min(EP.turns.length, Math.max(0, cur) + 1);
+    const t = { s: "B", text: a, caller: true, callStart: true, live: true, q: q || "(spoken question)" };
+    const bad = checkQuotes(a).filter(x => !x.found); if (bad.length) t.flag = `Quote not found in the book: “${bad[0].quote.slice(0, 80)}”`;
+    EP.turns.splice(insertAt, 0, t);
+    if (P.mode === "speech" && insertAt <= P.speechIdx) P.speechIdx++;
+    renderTranscript(); DB.put("episodes", { ...EP }).catch(() => {});
+  }
+  if (q) CHAT.push({ role: "user", text: q, live: true });
+  if (a) { const bad = checkQuotes(a).filter(x => !x.found); CHAT.push({ role: "model", text: a, live: true, check: bad.length ? { state: "done", badCites: [], badQuotes: bad, total: 0, problems: [] } : null }); }
+  if (VIEW === "ask") renderChat();
+}
+function playOut(b64, mime) {
+  if (!L.outCtx) return;
+  const bytes = b64ToBytes(b64); const rate = +(/rate=(\d+)/.exec(mime || "")?.[1] || 24000);
+  const n = bytes.length >> 1; const f = new Float32Array(n); const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  for (let i = 0; i < n; i++) f[i] = dv.getInt16(i * 2, true) / 32768;
+  if (!n) return;
+  const buf = L.outCtx.createBuffer(1, n, rate); buf.copyToChannel(f, 0);
+  const src = L.outCtx.createBufferSource(); src.buffer = buf; src.connect(L.analyser);
+  const t = Math.max(L.outCtx.currentTime + 0.05, L.nextT); src.start(t); L.nextT = t + buf.duration;
+  L.modelTalking = true; clearTimeout(L.resumeT);
+  L.srcs.add(src);
+  src.onended = () => { L.srcs.delete(src); if (!L.srcs.size) { L.modelTalking = false; if (L.turnDone) scheduleResume(); } };
+  if ($("#liveLbl").dataset.state !== "speaking") liveStatus("speaking");
+}
+function stopOut() { L.srcs.forEach(s => { try { s.onended = null; s.stop(); } catch {} }); L.srcs.clear(); L.nextT = 0; }
+function sendMic(buf) { if (!L.ready || L.muted) return; liveSend({ realtimeInput: { audio: { data: abToB64(buf), mimeType: "audio/pcm;rate=16000" } } }); }
+// Quick local reaction: lower the episode the moment you start talking, before Gemini has even heard the words.
+function micLevel(rms) {
+  L.micLvl = rms;
+  if (L.muted) return;
+  if (rms < L.floor * 2) L.floor = L.floor * 0.97 + rms * 0.03;
+  const loud = rms > Math.max(0.02, L.floor * 3.5);
+  L.loud = loud ? L.loud + 1 : 0;
+  const m = liveMedia();
+  if (L.loud >= 2 && !L.held && m.playing()) {
+    if (!L.ducked) { L.ducked = true; m.vol(0.25); }
+    clearTimeout(L.duckT);
+    L.duckT = setTimeout(() => { if (L.ducked && !L.held) { L.ducked = false; m.vol(1); } }, 1500);
+  }
+}
+function liveStatus(state, text) {
+  const lbl = $("#liveLbl"), say = $("#liveSay"), orb = $("#liveOrb");
+  lbl.dataset.state = state;
+  const map = {
+    connecting: ["Connecting", text || "Opening a live line to Gemini…"],
+    listening: ["Listening", text || (L.mode === "episode" ? "Just start talking. The episode pauses for you." : L.mode === "reader" ? "Just start talking. The reading pauses for you." : "Ask anything about the book, out loud.")],
+    you: ["You", L.userText.trim()],
+    looking: [`${S.bName} is checking the book`, L.userText.trim()],
+    speaking: [S.bName, L.modelText.trim() || "…"],
+    muted: ["Muted", "Tap the circle to talk again."],
+  };
+  const [l, t] = map[state] || map.listening;
+  lbl.textContent = l; say.textContent = t;
+  orb.classList.toggle("you", state === "you");
+  orb.classList.toggle("idle", state === "muted" || state === "connecting");
+}
+function orbLoop() {
+  if (!L.on) return;
+  let lvl = 0;
+  if (L.modelTalking && L.analyser) { const d = new Uint8Array(L.analyser.fftSize); L.analyser.getByteTimeDomainData(d); let e = 0; for (const v of d) e += ((v - 128) / 128) ** 2; lvl = Math.min(1, Math.sqrt(e / d.length) * 6); }
+  else if (!L.muted) lvl = Math.min(1, L.micLvl * 12);
+  $("#liveOrb").style.setProperty("--lvl", lvl.toFixed(3));
+  requestAnimationFrame(orbLoop);
+}
+async function grabWakeLock() { try { if (L.on && document.visibilityState === "visible" && navigator.wakeLock) L.wake = await navigator.wakeLock.request("screen"); } catch {} }
+document.addEventListener("visibilitychange", () => { if (L.on && document.visibilityState === "visible") grabWakeLock(); });
+function liveNote(text) {
+  if (!L.on || !L.ready || L.modelTalking || L.held || !text || text === L.lastNote) return;
+  L.lastNote = text;
+  liveSend({ clientContent: { turns: [{ role: "user", parts: [{ text: `[Position] ${text}` }] }], turnComplete: false } });
+}
+function updateLiveButtons() {
+  $$("[data-live]").forEach(b => { const on = L.on && L.mode === b.dataset.live; b.classList.toggle("primary", on || b.id === "liveAskBtn"); b.querySelector("span").textContent = on ? "End live" : b.id === "liveRdBtn" ? "Talk" : "Talk live"; });
+}
+async function liveStart(mode) {
+  if (!needKey()) return;
+  if (L.on) { const same = L.mode === mode; liveStop(); if (same) return; }
+  if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) { toast("This browser can't do live talk. Use Chrome."); return; }
+  Object.assign(L, { on: true, mode, handle: null, toolsLite: false, tries: 0, held: false, ducked: false, muted: false, userText: "", modelText: "", turnDone: false, modelTalking: false, lastNote: "", floor: 0.01 });
+  $("#livebar").hidden = false; liveStatus("connecting"); updateLiveButtons();
+  try {
+    L.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+  } catch (e) { liveStop(); toast("Microphone access was blocked. Allow the mic for this site in Chrome's settings, then try again.", 7000); return; }
+  if (!L.on) return;
+  try {
+    L.inCtx = new AudioContext(); L.outCtx = new AudioContext();
+    await L.inCtx.resume(); await L.outCtx.resume();
+    const url = URL.createObjectURL(new Blob([MIC_WORKLET], { type: "application/javascript" }));
+    await L.inCtx.audioWorklet.addModule(url);
+    const src = L.inCtx.createMediaStreamSource(L.stream);
+    L.node = new AudioWorkletNode(L.inCtx, "omni-mic");
+    L.node.port.onmessage = e => (typeof e.data === "number" ? micLevel(e.data) : sendMic(e.data));
+    const silent = L.inCtx.createGain(); silent.gain.value = 0;
+    src.connect(L.node); L.node.connect(silent); silent.connect(L.inCtx.destination);
+    L.analyser = L.outCtx.createAnalyser(); L.analyser.fftSize = 512; L.analyser.connect(L.outCtx.destination);
+  } catch (e) { console.error(e); liveStop(); toast("Couldn't start the microphone audio. Try again.", 6000); return; }
+  grabWakeLock();
+  liveConnect();
+  orbLoop();
+}
+function liveStop() {
+  const m = liveMedia();
+  L.on = false; clearTimeout(L.resumeT); clearTimeout(L.watchT); clearTimeout(L.duckT);
+  const ws = L.ws; L.ws = null; try { ws?.close(); } catch {}
+  stopOut();
+  try { L.stream?.getTracks().forEach(t => t.stop()); } catch {}
+  try { L.inCtx?.close(); } catch {} try { L.outCtx?.close(); } catch {}
+  L.stream = L.inCtx = L.outCtx = L.node = L.analyser = null; L.ready = false; L.modelTalking = false;
+  m.vol(1); if (L.held) { L.held = false; m.resume(); }
+  try { L.wake?.release(); } catch {} L.wake = null;
+  $("#livebar").hidden = true; updateLiveButtons();
+}
+$$("[data-live]").forEach(b => b.addEventListener("click", () => {
+  if (b.dataset.live === "episode" && !EP) { toast("Play an episode first."); return; }
+  liveStart(b.dataset.live);
+}));
+$("#liveEnd").addEventListener("click", () => liveStop());
+$("#liveOrb").addEventListener("click", () => {
+  if (!L.on) return;
+  L.muted = !L.muted;
+  if (L.muted) { liveSend({ realtimeInput: { audioStreamEnd: true } }); liveStatus("muted"); }
+  else liveStatus("listening");
+});
+
+/* ============================== settings dialog ============================== */
+const dlg = $("#settings");
+function voiceOptions(sel) { return VOICES.map(([n, d]) => `<option value="${n}" ${n === sel ? "selected" : ""}>${n} · ${d}</option>`).join(""); }
+function openSettings() {
+  $("#sKey").value = S.key; $("#sAName").value = S.aName; $("#sBName").value = S.bName;
+  $("#sAVoice").innerHTML = voiceOptions(S.aVoice); $("#sBVoice").innerHTML = voiceOptions(S.bVoice); $("#sNVoice").innerHTML = voiceOptions(S.nVoice);
+  $("#sText").value = S.textModel; $("#sSearch").value = S.searchModel; $("#sTts").value = S.ttsModel; $("#sLive").value = S.liveModel;
+  loadVoices(); setStatus("#sTestStatus", ""); $("#sWipeConfirm").hidden = true;
+  if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+}
+$("#openSettings").addEventListener("click", openSettings);
+$("#sKeyShow").addEventListener("click", () => { const k = $("#sKey"); k.type = k.type === "password" ? "text" : "password"; $("#sKeyShow").textContent = k.type === "password" ? "Show" : "Hide"; });
+$("#sTest").addEventListener("click", async () => {
+  const st = $("#sTestStatus"); const prev = S.key; S.key = $("#sKey").value.trim();
+  if (!S.key) { setStatus(st, "Paste a key first.", "err"); S.key = prev; return; }
+  setStatus(st, "Checking…", "busy");
+  try {
+    const r = await gemFetch("models?pageSize=1000", null, { method: "GET" });
+    const names = (r.models || []).map(m => m.name.replace(/^models\//, ""));
+    const tts = names.filter(n => /tts/.test(n)); const txt = names.filter(n => /^gemini/.test(n) && !/tts|embed|image|live|veo|imagen|transcribe|omni|robotics|native-audio/.test(n));
+    $("#modelList").innerHTML = txt.map(n => `<option value="${esc(n)}">`).join("");
+    $("#ttsList").innerHTML = tts.map(n => `<option value="${esc(n)}">`).join("");
+    $("#liveList").innerHTML = names.filter(n => /live|native-audio/.test(n)).map(n => `<option value="${esc(n)}">`).join("");
+    const missing = [["writing", $("#sText").value], ["search", $("#sSearch").value], ["voices", $("#sTts").value], ["live talk", $("#sLive").value]].filter(([, m]) => names.length && !names.includes(m)).map(([k, m]) => `${k} (${m})`);
+    setStatus(st, missing.length ? `Key works, but these models weren't listed: ${missing.join(", ")}. Pick from the suggestions when you tap a model box.` : `Key works. ${names.length} models available.`, missing.length ? "err" : "");
+  } catch (e) { setStatus(st, e.message, "err"); }
+  finally { S.key = prev; }
+});
+let wipeArmed = false;
+$("#sWipe").addEventListener("click", async () => {
+  if (!wipeArmed) { wipeArmed = true; $("#sWipeConfirm").hidden = false; setTimeout(() => { wipeArmed = false; $("#sWipeConfirm").hidden = true; }, 4000); return; }
+  await DB.wipe(); wipeArmed = false; dlg.close(); await openBook(null); go("library"); toast("Everything was deleted from this device.");
+});
+$("#setForm").addEventListener("submit", e => {
+  const action = e.submitter?.value;
+  if (action !== "save") return;
+  S.key = $("#sKey").value.trim();
+  S.aName = $("#sAName").value.trim() || DEFAULTS.aName; S.bName = $("#sBName").value.trim() || DEFAULTS.bName;
+  if (S.aName === S.bName) S.bName += " B";
+  S.aVoice = $("#sAVoice").value; S.bVoice = $("#sBVoice").value; S.nVoice = $("#sNVoice").value;
+  S.textModel = $("#sText").value.trim() || DEFAULTS.textModel; S.searchModel = $("#sSearch").value.trim() || DEFAULTS.searchModel; S.ttsModel = $("#sTts").value.trim() || DEFAULTS.ttsModel; S.liveModel = $("#sLive").value.trim() || DEFAULTS.liveModel;
+  S.browserVoice = $("#sBrowserVoice").value;
+  saveSettings(); renderStudio(); renderLibrary(); toast("Settings saved");
+});
+
+/* ============================== boot ============================== */
+(async () => {
+  try { await openBook(S.lastBook || null); } catch (e) { console.error(e); await openBook(null); }
+  const h = (location.hash || "").slice(1);
+  go(BOOK && TABS.some(([k]) => k === h) ? h : BOOK ? "book" : "library");
+  if (!S.key) $("#keyNotice").hidden = false;
+})();
+</script>
+</body>
+</html>
